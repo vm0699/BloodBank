@@ -23,6 +23,9 @@ Base: `https://<server>` · JSON in/out · `Authorization: Bearer <jwt>` unless 
 |---|---|
 | `PUT /api/me` | any of `name, email, dob, gender, bg, weight, height, city, area, pincode, address, last, donatedBefore, conditions[], emName, emPhone, prefs[], night, health{fever,medication,tattoo,surgery,pregnant,travel,vaccine}, consent, lang`. A `true` in `health` makes the person not eligible until answered `false`. |
 | `PUT /api/me/role {role}` | `user` or `hospital`. An approved hospital cannot be switched back. |
+| `POST /api/requests/:id/offer {accepted:true}` | offering to donate requires `accepted: true` (the donation instructions); otherwise `400 instructions_required` |
+| `GET /api/sync` → `banks[].stock` | `null` for everyone except hospital accounts |
+| `me.cert` | `{no, at}` donor registration certificate number, present once the person is a donor |
 | `POST /api/me/donor {enable}` | become (or stop being) a donor. Needs a blood group. Only donors are listed, alerted or allowed to offer. |
 | `POST /api/hospital/apply {name,type,regNo,phone,address,city,hours,lat,lng}` | hospital application (status `pending` until a LifeLink admin approves) |
 | `PUT /api/hospital {...}` | edit hospital details (updates the public blood-bank listing once approved) |

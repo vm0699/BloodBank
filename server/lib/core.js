@@ -134,6 +134,13 @@ function create(store, dataDir) {
   const donorPos = u => u.presence ? jitter(u.presence.lat, u.presence.lng, u.id, 300) : null;
   // Only people who chose "become a donor" (and are not a hospital account) ever appear on the map or get alerts.
   const donorListed = (u, c) => !!(u.status !== 'suspended' && u.donor === true && (u.role || 'user') === 'user' && u.available && isVerified(u) && eligibility(u).ok && u.presence && u.bg);
+  // Donor registration certificate: stable number derived from the account, issued when the person becomes a donor.
+  const certOf = u => {
+    if (u.donor !== true) return null;
+    const at = u.donorSince || u.createdAt || Date.now();
+    const h = require('crypto').createHash('sha1').update(String(u.id)).digest('hex').slice(0, 6).toUpperCase();
+    return { no: 'LL-' + new Date(at).getFullYear() + '-' + h, at };
+  };
   const hospitalOf = u => u.hospital ? { name: u.hospital.name, type: u.hospital.type, regNo: u.hospital.regNo, address: u.hospital.address, city: u.hospital.city, area: u.hospital.area || '',
     lat: u.hospital.lat, lng: u.hospital.lng, phone: u.hospital.phone, hours: u.hospital.hours || '', components: u.hospital.components || ['Whole blood'],
     status: u.hospital.status, reason: u.hospital.reason || '', bankId: u.hospital.bankId || '' } : null;
@@ -154,7 +161,7 @@ function create(store, dataDir) {
         area: u.area || '', pincode: u.pincode || '', height: u.height || '', prefs: u.prefs || [], night: !!u.night, health: u.health || {}, consentAt: u.consentAt || 0,
         available: !!u.available
       },
-      role: u.role || 'user', roleSet: u.role !== undefined, donor: u.donor === true, hospital: hospitalOf(u),
+      role: u.role || 'user', roleSet: u.role !== undefined, donor: u.donor === true, hospital: hospitalOf(u), cert: certOf(u),
       complete: (u.role || 'user') === 'hospital' ? !!(u.hospital && u.hospital.name) : !!(u.name && u.dob),
       verify: u.verify || { status: 'none' },
       verified: isVerified(u), verifyNeed: verifyNeed(u), docLocked: docLocked(u), hasAadhaar: hasDoc(u, 'aadhaar'), hasLicence: hasDoc(u, 'dl'),

@@ -8,6 +8,11 @@ Read next: [BACKEND.md](BACKEND.md) (run, configure, deploy, backups) · [DIGILO
 
 | Area | Status |
 |---|---|
+| **Start choice after login:** *Become a donor* (goes straight into donor registration), *Become a user* (can become a donor later) or *Hospital / blood bank*. Under-18s are stopped on the date-of-birth screen (and refused by the server) | ✅ |
+| **Map by role:** normal users see donors, needs, **camps** and transplant centres - no blood banks; donors also see blood-bank **locations**; hospital accounts see every bank **with its stock** (stock is never sent to non-hospital accounts) | ✅ |
+| **Donation instructions:** before anyone offers to donate they must read the guidelines, press *Accept all instructions* and then *Submit*; the acceptance time is stored with the offer (English + Tamil) | ✅ |
+| **Donor certificate:** issued the moment someone registers as a donor (name, blood group, certificate number, date, "LifeLink · SAVRO"); save as image/PDF or share | ✅ |
+| **About us:** mission and the three team members with photos (from your document) | ✅ |
 | **Two account types** chosen right after the OTP: **User** (looks for blood, can *become a donor* later - only donors appear on the map, get alerts and can offer help) and **Hospital / blood bank** (applies, is approved by a LifeLink admin, then manages stock, camps and the requests at its hospital, all in the app) | ✅ |
 | **Hospital tools in the app:** dashboard (stock, requests at the hospital, donors online nearby, camps), one-tap stock updates that stay correct when several people edit at once, camps with seat limits and registrant lists, mark patient requests fulfilled | ✅ |
 | **Profile page + Settings page** per account type (account, donor mode, language, appearance, alerts, privacy, data export, delete) | ✅ |

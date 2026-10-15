@@ -61,7 +61,7 @@ test('donor must verify before an offer; DigiLocker (mock) end to end binds docu
   // B raises a request first so A can try to offer while unverified
   const q = await call('POST', '/api/requests', { patient: 'Asha R.', bg: 'B+', units: 2, comp: 'Whole blood', urgency: 'critical', hrs: 3, hospital: 'City Hospital', city: 'Chennai', phone: '9000000001', lat: LAT, lng: LNG }, B.token);
   assert.equal(q.status, 200); assert.equal(q.alerted, 0); reqId = q.request.id;
-  const off = await call('POST', '/api/requests/' + reqId + '/offer', {}, A.token); assert.equal(off.status, 403); assert.equal(off.code, 'verify_required');
+  const off = await call('POST', '/api/requests/' + reqId + '/offer', { accepted: true }, A.token); assert.equal(off.status, 403); assert.equal(off.code, 'verify_required');
 
   const s = await call('POST', '/api/digilocker/start', { platform: 'web', returnUrl: 'http://localhost:5188/index.html' }, A.token);
   assert.equal(s.status, 200); assert.ok(s.authUrl.includes('/api/digilocker/mock')); assert.equal(s.mock, true);
@@ -109,8 +109,8 @@ test('matching: verified donor is listed, alerted and can complete the request l
   // A sees it in the feed without the contact number, then offers
   let sa = await call('GET', '/api/sync?lat=' + LAT + '&lng=' + LNG, null, A.token);
   const f = sa.feed.find(x => x.id === reqId); assert.ok(f); assert.equal(f.contact, '');
-  assert.equal((await call('POST', '/api/requests/' + reqId + '/offer', {}, C.token)).status, 403);     // C not verified
-  assert.equal((await call('POST', '/api/requests/' + reqId + '/offer', {}, A.token)).status, 200);
+  assert.equal((await call('POST', '/api/requests/' + reqId + '/offer', { accepted: true }, C.token)).status, 403);     // C not verified
+  assert.equal((await call('POST', '/api/requests/' + reqId + '/offer', { accepted: true }, A.token)).status, 200);
   let sb = await call('GET', '/api/sync', null, B.token);
   const mine = sb.mine.find(x => x.id === reqId); const resp = mine.responses.find(x => x.donorId === A.user.id);
   assert.equal(resp.state, 'offered'); assert.equal(resp.phone, undefined);
@@ -163,9 +163,9 @@ test('admin: login, dashboard, banks + stock, camps, staff scoping', async () =>
   const day = new Date(Date.now() + 5 * 864e5).toISOString().slice(0, 10);
   const c = await call('POST', '/api/admin/camps', { title: 'Staff Camp', date: day, time: '9 AM - 2 PM', venue: 'Hall', lat: 13.06, lng: 80.26, slots: 1 }, staffTok); assert.equal(c.status, 200); assert.equal(c.camp.bankId, bankId); campId = c.camp.id;
   assert.equal((await call('POST', '/api/admin/camps', { title: 'Bad', date: 'tomorrow', lat: 1, lng: 1 }, staffTok)).status, 400);
-  // app users see the bank stock and the camp
+  // app users see the bank location and the camp, but not the stock (that is for hospital accounts)
   const sync = await call('GET', '/api/sync?lat=13.05&lng=80.25', null, C.token);
-  assert.equal(sync.banks.find(x => x.id === bankId).stock['O+'], 12); assert.ok(sync.camps.some(x => x.id === campId));
+  assert.ok(sync.banks.find(x => x.id === bankId)); assert.equal(sync.banks.find(x => x.id === bankId).stock, null); assert.ok(sync.camps.some(x => x.id === campId));
   assert.equal((await call('POST', '/api/camps/' + campId + '/register', {}, C.token)).regCount, 1);
   assert.equal((await call('POST', '/api/camps/' + campId + '/register', {}, A.token)).status, 400);     // slots: 1 -> full
   const regs = await call('GET', '/api/admin/camps/' + campId + '/regs', null, staffTok); assert.equal(regs.items[0].name, 'Chitra Devi');

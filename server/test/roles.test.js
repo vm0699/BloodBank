@@ -90,11 +90,11 @@ test('user vs donor: only people who become donors are listed, alerted or allowe
   await call('PUT', '/api/me', { bg: 'O+' }, v.token);
   const req = await call('POST', '/api/requests', { patient: 'P One', bg: 'O+', units: 1, urgency: 'urgent', hospital: 'City Hospital', phone: '9810000099', lat: LAT, lng: LNG }, crowdUser('B+').token);
   assert.equal(req.status, 200);
-  assert.equal((await call('POST', '/api/requests/' + req.request.id + '/offer', {}, v.token)).code, 'donor_required');
+  assert.equal((await call('POST', '/api/requests/' + req.request.id + '/offer', { accepted: true }, v.token)).code, 'donor_required');
   const en = await call('POST', '/api/me/donor', { enable: true }, v.token);
   assert.equal(en.me.donor, true);
   assert.equal((await call('PUT', '/api/me/presence', { available: true, lat: LAT, lng: LNG }, v.token)).listed, true);
-  assert.equal((await call('POST', '/api/requests/' + req.request.id + '/offer', {}, v.token)).status, 200);
+  assert.equal((await call('POST', '/api/requests/' + req.request.id + '/offer', { accepted: true }, v.token)).status, 200);
   const off = await call('POST', '/api/me/donor', { enable: false }, v.token);
   assert.equal(off.me.donor, false);
   assert.equal((await call('PUT', '/api/me/presence', { lat: LAT, lng: LNG }, v.token)).listed, false);
@@ -123,9 +123,12 @@ test('concurrency: many parallel stock changes never lose an update; stale absol
   assert.equal(okSet.status, 200); assert.equal(okSet.bank.stock['A+'], 12);
   const floor = await call('PATCH', '/api/hospital/stock', { group: 'A+', delta: -100 }, hosp.token);
   assert.equal(floor.bank.stock['A+'], 0);                                // never negative
-  // the same numbers are what donors see on the map
-  const seen = await call('GET', '/api/sync?lat=13.08&lng=80.27&radius=10', null, crowdUser('AB+').token);
+  // other hospitals see the same numbers on the map; ordinary users only see the location
+  const otherHosp = crowdUser('A+', { donor: false, available: false, presence: null, role: 'hospital', hospital: { name: 'Other Hospital', status: 'approved', bankId: 'x' } });
+  const seen = await call('GET', '/api/sync?lat=13.08&lng=80.27&radius=10', null, otherHosp.token);
   assert.equal(seen.banks.find(x => x.id === b.id).stock['O-'], 40);
+  const plain = await call('GET', '/api/sync?lat=13.08&lng=80.27&radius=10', null, crowdUser('AB+').token);
+  assert.equal(plain.banks.find(x => x.id === b.id).stock, null);
 });
 
 test('concurrency: a camp with 5 seats and 25 people registering at once ends with exactly 5', async () => {
@@ -150,7 +153,7 @@ test('concurrency: 12 donors offer, the requester accepts all, all confirm at on
   assert.equal(rq.status, 200); assert.ok(rq.alerted > 0);
   const rid = rq.request.id;
 
-  const offers = await Promise.all(donors.map(d => call('POST', '/api/requests/' + rid + '/offer', {}, d.token)));
+  const offers = await Promise.all(donors.map(d => call('POST', '/api/requests/' + rid + '/offer', { accepted: true }, d.token)));
   assert.ok(offers.every(o => o.status === 200));
   const v = await call('GET', '/api/requests/' + rid, null, requester.token);
   assert.equal(v.request.responders, 12);
@@ -191,4 +194,34 @@ test('real time: every connected user receives a donor move (30 open streams)', 
   const t0 = Date.now(); while (Date.now() - t0 < 3000 && got.some(g => !g.length)) await new Promise(r => setTimeout(r, 25));
   acs.forEach(a => a.abort());
   assert.equal(got.filter(g => g.length).length, 30);
+});
+
+test('product rules: 18+ only, donation instructions must be accepted, bank stock is hospital-only, donors get a certificate number', async () => {
+  const v = await signup('9810000050');
+  // age: under 18 is refused and nothing is saved
+  const kid = await call('PUT', '/api/me', { name: 'Young Person', dob: core.dayKey(Date.now() - 16 * 365 * 86400e3), gender: 'M' }, v.token);
+  assert.equal(kid.status, 400); assert.match(kid.error, /18/);
+  assert.equal((await call('PUT', '/api/me', { name: 'Adult Person', dob: '1995-05-05', gender: 'M', bg: 'O+', weight: 70 }, v.token)).status, 200);
+  store.patch('users', v.user.id, { verify: { status: 'verified', method: 'direct' } });
+
+  // donor certificate
+  const en = await call('POST', '/api/me/donor', { enable: true }, v.token);
+  assert.match(en.me.cert.no, /^LL-\d{4}-[0-9A-F]{6}$/);
+  assert.equal((await call('GET', '/api/sync', null, v.token)).me.cert.no, en.me.cert.no);       // stable
+
+  // donation instructions
+  await call('PUT', '/api/me/presence', { available: true, lat: LAT, lng: LNG }, v.token);
+  const rq = await call('POST', '/api/requests', { patient: 'Rules Patient', bg: 'O+', units: 1, urgency: 'urgent', hospital: 'City Hospital', phone: '9810000098', lat: LAT, lng: LNG }, crowdUser('B+').token);
+  const noAccept = await call('POST', '/api/requests/' + rq.request.id + '/offer', {}, v.token);
+  assert.equal(noAccept.status, 400); assert.equal(noAccept.code, 'instructions_required');
+  assert.equal((await call('POST', '/api/requests/' + rq.request.id + '/offer', { accepted: true }, v.token)).status, 200);
+  const resp = store.get('requests', rq.request.id).responses.find(x => x.donorId === v.user.id);
+  assert.ok(resp.instructionsAt > 0);                                                                // acceptance is recorded
+
+  // stock visibility: hospital accounts see units, everyone else sees locations only
+  const asUser = await call('GET', '/api/sync?lat=13.08&lng=80.27&radius=10', null, v.token);
+  const bank = asUser.banks.find(b => b.id === hosp.bankId);
+  assert.ok(bank); assert.equal(bank.stock, null); assert.equal(bank.name, 'Concurrent General');
+  const asHosp = await call('GET', '/api/sync?lat=13.08&lng=80.27&radius=10', null, hosp.token);
+  assert.equal(typeof asHosp.banks.find(b => b.id === hosp.bankId).stock['O-'], 'number');
 });

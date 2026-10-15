@@ -95,7 +95,8 @@ module.exports = function register(R, { store, core, dl, env, dataDir, limiter }
       .map(x => ({ id: x.id, kind: 'camp', title: x.title, org: x.org || '', host: x.host || '', date: x.date, time: x.time || '', venue: x.venue || '', lat: x.lat, lng: x.lng, slots: x.slots || 0, regCount: (x.regs || []).length, registered: (x.regs || []).includes(user.id) }));
     return {
       serverTime: Date.now(), me: core.userView(user), donors, feed, mine, offers: myOffers(user), camps,
-      banks: store.list('banks').filter(b => b.active !== false && within(b, 150)).map(normBank),
+      // Blood bank locations are public; the units in stock are only for hospital accounts.
+      banks: store.list('banks').filter(b => b.active !== false && within(b, 150)).map(normBank).map(b => (user.role === 'hospital' ? b : Object.assign(b, { stock: null }))),
       centres: store.list('centres').filter(x => x.active !== false && within(x, 300)).map(x => ({ id: x.id, kind: 'centre', name: x.name, programs: x.programs || [], lat: x.lat, lng: x.lng, phone: x.phone || '', hours: x.hours || '', coordinator: 'Transplant coordinator' })),
       donations: store.filter('donations', d => d.userId === user.id).sort((a, b) => b.t - a.t).slice(0, 100).map(d => ({ id: d.id, t: d.t, place: d.place, type: d.type, units: d.units, forWho: d.forWho })),
       unread: store.filter('notifications', n => n.userId === user.id && !n.read).length,
@@ -109,7 +110,11 @@ module.exports = function register(R, { store, core, dl, env, dataDir, limiter }
     if ('name' in body) { p.name = str(body.name, 80); if (!p.name) throw bad('Enter your name'); }
     if ('email' in body) p.email = str(body.email, 120);
     const locked = core.docLocked(user);   // date of birth + gender come from the verified document and cannot be edited
-    if ('dob' in body && !locked) { if (body.dob && (!isDay(body.dob) || body.dob > today())) throw bad('Check the date of birth'); p.dob = body.dob || ''; }
+    if ('dob' in body && !locked) {
+      if (body.dob && (!isDay(body.dob) || body.dob > today())) throw bad('Check the date of birth');
+      if (body.dob && core.ageOf(body.dob) < 18) throw bad('You must be 18 or older to use LifeLink');
+      p.dob = body.dob || '';
+    }
     if ('gender' in body && !locked) p.gender = oneOf(body.gender, ['M', 'F', 'O']) || '';
     if ('bg' in body) { p.bg = oneOf(body.bg, core.BGS); if (!p.bg) throw bad('Choose a blood group'); }
     if ('weight' in body) { p.weight = body.weight === '' || body.weight == null ? '' : num(body.weight, 20, 250); if (p.weight === null) throw bad('Check the weight'); }
@@ -227,7 +232,7 @@ module.exports = function register(R, { store, core, dl, env, dataDir, limiter }
     const r = mustReq(params.id); if (r.userId !== user.id) throw new HttpError(403, 'Not your request'); if (r.status !== 'open') throw bad('Request is not open');
     return { alerted: core.alertDonors(r, 15), request: core.reqView(r, user) };
   });
-  R.add('POST', '/api/requests/:id/offer', { auth: 'user' }, ({ user, params }) => {
+  R.add('POST', '/api/requests/:id/offer', { auth: 'user' }, ({ user, params, body }) => {
     const r = mustReq(params.id);
     if (r.status !== 'open') throw bad('This request is no longer open');
     if (r.userId === user.id) throw bad('You cannot offer on your own request');
@@ -235,9 +240,11 @@ module.exports = function register(R, { store, core, dl, env, dataDir, limiter }
     if (!core.isVerified(user)) throw new HttpError(403, 'Verify your ID to donate', { code: 'verify_required', need: core.verifyNeed(user) });
     if (!user.bg || !core.canGive(user.bg, r.bg)) throw bad('Your blood group is not compatible with this request');
     const e = core.eligibility(user); if (!e.ok) throw bad('You are not eligible to donate right now');
+    if (!body || body.accepted !== true) throw new HttpError(400, 'Please read and accept the donation instructions first', { code: 'instructions_required' });
     let x = r.responses.find(y => y.donorId === user.id);
     if (!x) { x = { id: crypto.randomBytes(6).toString('hex'), donorId: user.id, state: 'offered', at: Date.now() }; r.responses.push(x); }
     else if (['pinged', 'withdrawn', 'declined'].includes(x.state)) { x.state = 'offered'; x.at = Date.now(); }
+    x.instructionsAt = Date.now();                       // when the donor accepted the donation instructions
     store.save();
     const pos = core.donorPos(user) || [r.lat, r.lng];
     core.notify(r.userId, 'offer_received', { name: core.shortName(user.name), bg: user.bg, km: Math.round(hav(r.lat, r.lng, pos[0], pos[1]) * 10) / 10 }, { requestId: r.id });
