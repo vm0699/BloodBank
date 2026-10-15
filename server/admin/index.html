@@ -1,0 +1,400 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>LifeLink Admin</title>
+<link rel="icon" href="/admin/favicon.svg" type="image/svg+xml">
+<link rel="stylesheet" href="/admin/leaflet.css">
+<style>
+:root{--bg:#FAF6F5;--card:#fff;--bg3:#FCEBE8;--fg:#2A1412;--fg2:#7A5A56;--line:rgba(120,30,25,.13);--accent:#B71C1C;--ok:#2E7D5B;--okbg:#E3F3EB;--warn:#A86A0C;--warnbg:#FBF1DC;--side:#2A0F0E;--shadow:0 4px 18px rgba(80,20,15,.08)}
+*{box-sizing:border-box}
+body{margin:0;font:14px/1.45 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;background:var(--bg);color:var(--fg)}
+button,input,select,textarea{font:inherit;color:inherit}
+button{cursor:pointer}
+h1{font-size:22px;margin:0}h2{font-size:16px;margin:0 0 10px}
+.muted{color:var(--fg2)}.sm{font-size:12px}.b{font-weight:650}.right{text-align:right}
+#app{display:flex;min-height:100vh}
+#side{width:224px;background:var(--side);color:#fff;padding:18px 12px;flex:none;position:sticky;top:0;height:100vh;overflow:auto}
+#side .logo{display:flex;align-items:center;gap:10px;font-weight:700;font-size:17px;padding:0 8px 18px}
+#side .logo i{width:30px;height:30px;border-radius:9px;background:var(--accent);display:grid;place-items:center;font-style:normal}
+#side button{display:flex;width:100%;align-items:center;gap:10px;text-align:left;background:none;border:0;color:#E8CFCB;padding:10px 12px;border-radius:10px;margin-bottom:2px}
+#side button:hover{background:rgba(255,255,255,.07)}
+#side button.on{background:var(--accent);color:#fff}
+#side .badge{margin-left:auto;background:#fff;color:var(--accent);border-radius:9px;font-size:11px;padding:0 7px;font-weight:700}
+#main{flex:1;min-width:0;padding:22px 28px 60px}
+.top{display:flex;align-items:center;justify-content:space-between;margin-bottom:18px;gap:12px;flex-wrap:wrap}
+.card{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:16px;box-shadow:var(--shadow)}
+.grid{display:grid;gap:14px}.g4{grid-template-columns:repeat(auto-fit,minmax(170px,1fr))}.g2{grid-template-columns:repeat(auto-fit,minmax(340px,1fr))}
+.stat b{display:block;font-size:26px;line-height:1.1}.stat span{color:var(--fg2);font-size:12px}
+.btn{border:1px solid var(--line);background:#fff;border-radius:9px;padding:7px 13px;font-weight:600}
+.btn:hover{background:var(--bg3)}.btn.p{background:var(--accent);color:#fff;border-color:transparent}.btn.p:hover{filter:brightness(1.1)}
+.btn.d{color:var(--accent);border-color:var(--accent)}.btn.s{padding:4px 9px;font-size:12px}.btn[disabled]{opacity:.5;pointer-events:none}
+.tag{display:inline-block;padding:1px 8px;border-radius:9px;font-size:11px;font-weight:650;background:var(--bg3);color:var(--fg2)}
+.tag.ok{background:var(--okbg);color:var(--ok)}.tag.warn{background:var(--warnbg);color:var(--warn)}.tag.red{background:var(--accent);color:#fff}
+table{width:100%;border-collapse:collapse}th{text-align:left;font-size:11px;text-transform:uppercase;letter-spacing:.5px;color:var(--fg2);padding:8px 10px;border-bottom:1px solid var(--line);white-space:nowrap}
+td{padding:9px 10px;border-bottom:1px solid var(--line);vertical-align:middle}tr:last-child td{border-bottom:0}tbody tr.click{cursor:pointer}tbody tr.click:hover{background:var(--bg3)}
+.tools{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:12px;align-items:center}
+input,select,textarea{border:1px solid var(--line);background:#fff;border-radius:9px;padding:8px 11px;min-width:0}
+input:focus,select:focus,textarea:focus{outline:2px solid rgba(183,28,28,.25);border-color:var(--accent)}
+label{display:block;font-size:12px;font-weight:600;color:var(--fg2);margin:0 0 10px}label input,label select,label textarea{display:block;width:100%;margin-top:4px;font-weight:400;color:var(--fg)}
+.row{display:flex;gap:10px;align-items:center}.row>*{flex:1}.wrap{flex-wrap:wrap}
+.modalbg{position:fixed;inset:0;background:rgba(20,5,5,.5);display:flex;align-items:flex-start;justify-content:center;padding:4vh 14px;z-index:50;overflow:auto}
+.modal{background:#fff;border-radius:16px;width:min(760px,100%);padding:22px;box-shadow:0 20px 60px rgba(0,0,0,.35)}
+.modal h2{font-size:18px}.modal .acts{display:flex;gap:8px;justify-content:flex-end;margin-top:16px;flex-wrap:wrap}
+.bars{display:flex;align-items:flex-end;gap:6px;height:120px}.bars div{flex:1;display:flex;flex-direction:column;justify-content:flex-end;align-items:center;gap:3px;height:100%}
+.bars i{display:block;width:100%;background:var(--bg3);border-radius:5px 5px 0 0;position:relative;min-height:2px}.bars i u{position:absolute;left:0;right:0;bottom:0;background:var(--accent);border-radius:5px 5px 0 0}
+.bars span{font-size:10px;color:var(--fg2)}
+.kv{display:grid;grid-template-columns:150px 1fr;gap:6px 12px;font-size:13px}.kv>:nth-child(odd){color:var(--fg2)}
+#toast{position:fixed;bottom:22px;left:50%;transform:translateX(-50%);background:#2A1412;color:#fff;padding:10px 18px;border-radius:22px;z-index:99;opacity:0;transition:.25s;pointer-events:none}#toast.on{opacity:1}
+#login{max-width:380px;margin:12vh auto;padding:0 16px}
+#pick{height:260px;border-radius:10px;border:1px solid var(--line);margin:6px 0 10px}
+.stockgrid{display:grid;grid-template-columns:repeat(4,1fr);gap:8px}.stockgrid label{margin:0}.stockgrid input{text-align:center;font-weight:700}
+.pager{display:flex;gap:8px;align-items:center;justify-content:flex-end;margin-top:10px}
+img.doc{max-width:100%;border-radius:10px;border:1px solid var(--line)}
+@media(max-width:820px){#app{display:block}#side{width:auto;height:auto;position:static;display:flex;align-items:flex-start;overflow:auto;padding:8px}#side .logo{display:none}#side button{width:auto;white-space:nowrap}#main{padding:14px}}
+</style>
+</head>
+<body>
+<div id="root"></div><div id="toast"></div>
+<script src="/admin/leaflet.js"></script>
+<script>
+'use strict';
+const $ = (s, r) => (r || document).querySelector(s);
+const esc = s => String(s == null ? '' : s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const BGS = ['A+','A-','B+','B-','AB+','AB-','O+','O-'];
+const COMPONENTS = ['Whole blood','Red cells','Platelets','Plasma'];
+const fdt = t => t ? new Date(t).toLocaleString([], { day: 'numeric', month: 'short', year: '2-digit', hour: '2-digit', minute: '2-digit' }) : '-';
+const fd = t => t ? new Date(t).toLocaleDateString([], { day: 'numeric', month: 'short', year: 'numeric' }) : '-';
+let TOKEN = sessionStorage.getItem('adm') || '', ME = null, PAGE = 'dash', CACHE = {};
+
+async function api(method, path, body, raw) {
+  const r = await fetch('/api/admin' + path, { method, headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + TOKEN }, body: body ? JSON.stringify(body) : undefined });
+  if (raw) return r;
+  const j = await r.json().catch(() => ({}));
+  if (r.status === 401 && ME) { logout(); throw new Error('Session expired'); }
+  if (!r.ok) throw new Error(j.error || 'Request failed');
+  return j;
+}
+let tT = 0; function toast(m, bad) { const t = $('#toast'); t.textContent = m; t.style.background = bad ? '#B71C1C' : '#2A1412'; t.classList.add('on'); clearTimeout(tT); tT = setTimeout(() => t.classList.remove('on'), 2600); }
+const guard = fn => async (...a) => { try { return await fn(...a); } catch (e) { toast(e.message, true); } };
+function logout() { TOKEN = ''; ME = null; sessionStorage.removeItem('adm'); renderLogin(); }
+
+/* ---------- modal ---------- */
+let mapPick = null;
+function modal(html) { closeModal(); const d = document.createElement('div'); d.className = 'modalbg'; d.innerHTML = '<div class="modal">' + html + '</div>'; d.addEventListener('mousedown', e => { if (e.target === d) closeModal(); }); document.body.appendChild(d); return d; }
+function closeModal() { document.querySelectorAll('.modalbg').forEach(m => m.remove()); mapPick = null; }
+const confirmBox = (msg, label) => new Promise(res => { const m = modal('<h2>' + esc(msg) + '</h2><div class="acts"><button class="btn" id="cn">Cancel</button><button class="btn p" id="cy">' + esc(label || 'Confirm') + '</button></div>'); $('#cn', m).onclick = () => { closeModal(); res(false); }; $('#cy', m).onclick = () => { closeModal(); res(true); }; });
+const promptBox = (msg, ph) => new Promise(res => { const m = modal('<h2>' + esc(msg) + '</h2><label><input id="pv" placeholder="' + esc(ph || '') + '"></label><div class="acts"><button class="btn" id="cn">Cancel</button><button class="btn p" id="cy">OK</button></div>'); $('#pv', m).focus(); $('#cn', m).onclick = () => { closeModal(); res(null); }; $('#cy', m).onclick = () => { const v = $('#pv', m).value; closeModal(); res(v); }; });
+function pickMap(lat, lng) {
+  setTimeout(() => {
+    const el = $('#pick'); if (!el || !window.L) return;
+    const c = [parseFloat(lat) || 13.0827, parseFloat(lng) || 80.2707];
+    mapPick = L.map(el).setView(c, (lat ? 15 : 11));
+    L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom: 19, attribution: '© OpenStreetMap' }).addTo(mapPick);
+    let mk = lat ? L.marker(c).addTo(mapPick) : null;
+    mapPick.on('click', e => { if (mk) mk.setLatLng(e.latlng); else mk = L.marker(e.latlng).addTo(mapPick); $('[name=lat]').value = e.latlng.lat.toFixed(6); $('[name=lng]').value = e.latlng.lng.toFixed(6); });
+  }, 50);
+}
+const mapField = (lat, lng) => '<div class="sm muted">Click the map to set the location</div><div id="pick"></div><div class="row"><label>Latitude<input name="lat" value="' + esc(lat || '') + '"></label><label>Longitude<input name="lng" value="' + esc(lng || '') + '"></label></div>';
+const formVals = root => Object.fromEntries([...root.querySelectorAll('[name]')].filter(e => e.type !== 'checkbox' || true).map(e => [e.name, e.type === 'checkbox' ? e.checked : e.value]));
+
+/* ---------- tables / paging ---------- */
+const bgTag = b => b ? '<span class="tag red">' + esc(b) + '</span>' : '<span class="muted">-</span>';
+const vTag = (s, m) => s === 'verified' ? '<span class="tag ok">verified' + (m ? ' · ' + esc(m) : '') + '</span>' : s === 'pending' ? '<span class="tag warn">pending</span>' : s === 'rejected' ? '<span class="tag">rejected</span>' : '<span class="tag">none</span>';
+function pager(r, act) { const pages = Math.max(1, Math.ceil(r.total / r.size)); return '<div class="pager"><span class="muted sm">' + r.total + ' total</span><button class="btn s" data-a="' + act + '" data-p="' + (r.page - 1) + '" ' + (r.page <= 1 ? 'disabled' : '') + '>Prev</button><span class="sm">' + r.page + ' / ' + pages + '</span><button class="btn s" data-a="' + act + '" data-p="' + (r.page + 1) + '" ' + (r.page >= pages ? 'disabled' : '') + '>Next</button></div>'; }
+
+/* ---------- shell ---------- */
+const NAV = { admin: [['dash','Dashboard'],['users','Donors & users'],['verif','Verifications'],['hosp','Hospitals'],['reqs','Blood requests'],['reports','Reports'],['banks','Blood banks'],['camps','Camps'],['centres','Transplant centres'],['organ','Organ pledges'],['broadcast','Broadcast'],['staff','Staff & access'],['settings','Settings'],['audit','Audit log']],
+  staff: [['dash','My blood bank'],['camps','Camps']] };
+async function renderShell() {
+  const nav = NAV[ME.role];
+  $('#root').innerHTML = '<div id="app"><aside id="side"><div class="logo"><i>🩸</i>LifeLink Admin</div>' + nav.map(n => '<button data-nav="' + n[0] + '" id="n-' + n[0] + '">' + n[1] + '<span class="badge" id="b-' + n[0] + '" hidden></span></button>').join('') +
+    '<div style="margin-top:16px;padding:10px 12px;font-size:12px;color:#BFA19C;border-top:1px solid rgba(255,255,255,.1)">' + esc(ME.name || ME.email) + '<br>' + esc(ME.role) + '<br><a href="#" id="pw" style="color:#fff">Change password</a> · <a href="#" id="lo" style="color:#fff">Sign out</a></div></aside><main id="main"></main></div>';
+  $('#side').onclick = e => { const b = e.target.closest('[data-nav]'); if (b) go(b.dataset.nav); };
+  $('#lo').onclick = e => { e.preventDefault(); logout(); }; $('#pw').onclick = e => { e.preventDefault(); changePw(); };
+  go(PAGE in Object.fromEntries(nav) ? PAGE : 'dash');
+}
+function go(p) { PAGE = p; document.querySelectorAll('#side [data-nav]').forEach(b => b.classList.toggle('on', b.dataset.nav === p)); (PAGES[p] || PAGES.dash)(); refreshBadges(); }
+const refreshBadges = guard(async () => { if (ME.role !== 'admin') return; const s = await api('GET', '/stats'); [['verif', s.pendingVerifications], ['hosp', s.pendingHospitals], ['reports', s.openReports]].forEach(([k, n]) => { const b = $('#b-' + k); if (b) { b.textContent = n; b.hidden = !n; } }); });
+const main = html => { $('#main').innerHTML = html; };
+const head = (t, right) => '<div class="top"><h1>' + t + '</h1><div class="row" style="flex:none">' + (right || '') + '</div></div>';
+
+/* ---------- pages ---------- */
+const PAGES = {};
+PAGES.dash = guard(async () => {
+  const s = await api('GET', '/stats');
+  if (s.role === 'staff') {
+    if (!s.bank) return main(head('My blood bank') + '<div class="card">No bank is assigned to your account.</div>');
+    return main(head(esc(s.bank.name), '<button class="btn p" data-a="stock" data-id="' + s.bank.id + '">Update stock</button>') +
+      '<div class="grid g4"><div class="card stat"><b>' + s.upcomingCamps + '</b><span>Upcoming camps</span></div><div class="card stat"><b>' + s.registrations + '</b><span>Camp registrations</span></div><div class="card stat"><b style="color:' + (s.lowGroups.length ? 'var(--accent)' : 'var(--ok)') + '">' + s.lowGroups.length + '</b><span>Groups below 5 units</span></div></div>' +
+      '<div class="card" style="margin-top:14px"><h2>Current stock</h2>' + stockBars(s.bank.stock) + '<p class="muted sm">Last updated ' + fdt(s.bank.updatedAt) + '. Donors see this live in the app.</p></div>');
+  }
+  const mx = Math.max(1, ...Object.values(s.byBg)), mr = Math.max(1, ...s.byDay.map(d => Math.max(d.requests, d.signups)));
+  main(head('Dashboard', '<button class="btn" data-a="refresh">Refresh</button>') +
+    '<div class="grid g4">' + [['Registered users', s.users, s.realUsers + ' real'], ['ID verified', s.verified, ''], ['Live donors (listed)', s.listed, ''], ['New this week', s.newWeek, ''], ['Open requests', s.requestsOpen, ''], ['Fulfilled requests', s.requestsFulfilled, 'of ' + s.requestsTotal],
+      ['Donations logged', s.donations, ''], ['Organ pledges', s.organPledges, '']].map(c => '<div class="card stat"><b>' + c[1] + '</b><span>' + c[0] + (c[2] ? ' · ' + c[2] : '') + '</span></div>').join('') + '</div>' +
+    '<div class="grid g4" style="margin-top:14px">' + [['Pending ID reviews', s.pendingVerifications, 'verif'], ['DigiLocker name mismatches', s.mismatches, 'users'], ['Open reports', s.openReports, 'reports']].map(c => '<button class="card stat" style="text-align:left" data-nav-go="' + c[2] + '"><b style="color:' + (c[1] ? 'var(--accent)' : 'var(--ok)') + '">' + c[1] + '</b><span>' + c[0] + '</span></button>').join('') + '</div>' +
+    '<div class="grid g2" style="margin-top:14px"><div class="card"><h2>Donors by blood group <span class="muted sm">(all · live)</span></h2><div class="bars">' + BGS.map(g => '<div><i style="height:' + (s.byBg[g] / mx * 100) + '%"><u style="height:' + (s.byBg[g] ? s.listedByBg[g] / s.byBg[g] * 100 : 0) + '%"></u></i><b class="sm">' + s.byBg[g] + '</b><span>' + g + '</span></div>').join('') + '</div></div>' +
+    '<div class="card"><h2>Last 14 days <span class="muted sm">(requests · sign-ups)</span></h2><div class="bars">' + s.byDay.map(d => '<div title="' + d.date + '"><i style="height:' + (d.requests / mr * 100) + '%"><u style="height:100%;opacity:.9"></u></i><i style="height:' + (d.signups / mr * 50) + '%;background:#E9B8B2"></i><span>' + d.date.slice(8) + '</span></div>').join('') + '</div></div></div>' +
+    '<div class="card" style="margin-top:14px"><h2>Banks running low</h2>' + (s.lowStock.length ? s.lowStock.map(b => '<div class="row sm" style="padding:6px 0;border-top:1px solid var(--line)"><span class="b">' + esc(b.name) + '</span><span>' + b.low.map(bgTag).join(' ') + '</span></div>').join('') : '<span class="muted">All banks have healthy stock or have not reported yet.</span>') + '</div>');
+});
+const stockBars = st => '<div class="stockgrid">' + BGS.map(g => '<div class="card" style="text-align:center;padding:10px"><b style="color:var(--accent)">' + g + '</b><div class="tag ' + ((st[g] || 0) < 5 ? 'red' : (st[g] || 0) < 12 ? 'warn' : 'ok') + '" style="display:block;margin-top:4px">' + (st[g] || 0) + '</div></div>').join('') + '</div>';
+
+/* users */
+let Uq = { q: '', bg: '', verify: '', status: '', mismatch: '', listed: '', page: 1 };
+PAGES.users = guard(async () => {
+  const r = await api('GET', '/users?' + new URLSearchParams(Object.fromEntries(Object.entries(Uq).filter(([, v]) => v !== ''))));
+  main(head('Donors & users', '<a class="btn" href="#" data-a="export" data-k="users">Export CSV</a>') +
+    '<div class="tools"><input id="uq" placeholder="Search name, phone, city" value="' + esc(Uq.q) + '" style="min-width:240px">' +
+    '<select id="ubg"><option value="">Any group</option>' + BGS.map(g => '<option' + (Uq.bg === g ? ' selected' : '') + '>' + g + '</option>').join('') + '</select>' +
+    '<select id="uv"><option value="">Any verification</option>' + ['verified', 'pending', 'rejected', 'none'].map(g => '<option' + (Uq.verify === g ? ' selected' : '') + '>' + g + '</option>').join('') + '</select>' +
+    '<select id="us"><option value="">Any status</option><option' + (Uq.status === 'suspended' ? ' selected' : '') + '>suspended</option><option' + (Uq.status === 'active' ? ' selected' : '') + '>active</option></select>' +
+    '<label style="margin:0;display:flex;gap:5px;align-items:center"><input type="checkbox" id="um" ' + (Uq.mismatch ? 'checked' : '') + ' style="width:auto;margin:0"> name mismatch</label>' +
+    '<label style="margin:0;display:flex;gap:5px;align-items:center"><input type="checkbox" id="ul" ' + (Uq.listed ? 'checked' : '') + ' style="width:auto;margin:0"> live on map</label></div>' +
+    '<div class="card" style="padding:0;overflow:auto"><table><thead><tr><th>Name</th><th>Phone</th><th>Group</th><th>City</th><th>ID</th><th>Live</th><th>Donations</th><th>Joined</th></tr></thead><tbody>' +
+    r.items.map(u => '<tr class="click" data-a="user" data-id="' + u.id + '"><td class="b">' + esc(u.name || '(no name)') + (u.demo ? ' <span class="tag">demo</span>' : '') + (u.status === 'suspended' ? ' <span class="tag red">suspended</span>' : '') + (u.organ ? ' ❤' : '') + '</td><td>' + esc(u.phone) + '</td><td>' + bgTag(u.bg) + '</td><td>' + esc(u.city) + '</td><td>' + vTag(u.verify, u.method) + (u.mismatch ? ' <span class="tag warn">mismatch</span>' : '') + '</td><td>' + (u.listed ? '<span class="tag ok">on map</span>' : u.available ? '<span class="tag">waiting</span>' : '-') + '</td><td>' + u.donations + '</td><td class="muted">' + fd(u.createdAt) + '</td></tr>').join('') +
+    (r.items.length ? '' : '<tr><td colspan="8" class="muted" style="text-align:center;padding:30px">No users match.</td></tr>') + '</tbody></table></div>' + pager(r, 'upage'));
+  const f = () => { Uq = { q: $('#uq').value.trim(), bg: $('#ubg').value, verify: $('#uv').value, status: $('#us').value, mismatch: $('#um').checked ? '1' : '', listed: $('#ul').checked ? '1' : '', page: 1 }; PAGES.users(); };
+  let t; $('#uq').oninput = () => { clearTimeout(t); t = setTimeout(f, 350); }; ['ubg', 'uv', 'us', 'um', 'ul'].forEach(i => $('#' + i).onchange = f);
+});
+const openUser = guard(async id => {
+  const { user: u } = await api('GET', '/users/' + id), p = u.profile, v = u.verify || {};
+  const m = modal('<div class="row" style="align-items:flex-start"><div><h2>' + esc(p.name || '(no name)') + ' ' + bgTag(p.bg) + '</h2><div class="muted">' + esc(u.phone) + ' · ' + esc(p.city) + ' · joined ' + fd(u.createdAt) + '</div></div><div class="right" style="flex:none">' + vTag(v.status, v.method) + (u.status === 'suspended' ? ' <span class="tag red">suspended</span>' : '') + '</div></div>' +
+    '<div class="grid g2" style="margin-top:14px"><div><h2>Profile</h2><form id="uf"><div class="row"><label>Name<input name="name" value="' + esc(p.name) + '"></label><label>City<input name="city" value="' + esc(p.city) + '"></label></div>' +
+    '<div class="row"><label>Blood group<select name="bg">' + BGS.map(g => '<option' + (p.bg === g ? ' selected' : '') + '>' + g + '</option>').join('') + '</select></label><label>Gender<select name="gender">' + [['M', 'Male'], ['F', 'Female'], ['O', 'Other']].map(g => '<option value="' + g[0] + '"' + (p.gender === g[0] ? ' selected' : '') + '>' + g[1] + '</option>').join('') + '</select></label></div>' +
+    '<div class="row"><label>Date of birth<input type="date" name="dob" value="' + esc(p.dob) + '"></label><label>Weight (kg)<input name="weight" value="' + esc(p.weight) + '"></label></div>' +
+    '<div class="row"><label>Last donation<input type="date" name="last" value="' + esc(p.last) + '"></label><label>Available<select name="available"><option value="">No</option><option value="1"' + (p.available ? ' selected' : '') + '>Yes</option></select></label></div></form>' +
+    '<h2 style="margin-top:14px">Details &amp; screening</h2><div class="kv"><span>Area</span><span>' + esc(p.area || '-') + ' ' + esc(p.pincode || '') + '</span><span>Height</span><span>' + (p.height ? esc(p.height) + ' cm' : '-') + '</span><span>Can give</span><span>' + esc((p.prefs || []).join(', ') || '-') + '</span><span>Night calls</span><span>' + (p.night ? 'yes' : 'no') + '</span><span>Emergency contact</span><span>' + esc(p.emName || '-') + ' ' + esc(p.emPhone || '') + '</span>' +
+    '<span>Health answers</span><span>' + (Object.keys(p.health || {}).length ? (Object.entries(p.health).filter(e => e[1]).map(e => '<span class="tag red">' + esc(e[0]) + '</span>').join(' ') || '<span class="tag ok">all clear</span>') : '<span class="muted">not answered</span>') + '</span><span>Consent given</span><span>' + (p.consentAt ? fdt(p.consentAt) : '-') + '</span></div></div>' +
+    '<div><h2>Verification</h2><div class="kv"><span>Status</span><span>' + vTag(v.status, v.method) + '</span>' + (v.name ? '<span>Name on ID</span><span>' + esc(v.name) + (v.mismatch ? ' <span class="tag warn">differs from profile</span>' : '') + '</span>' : '') + (v.dob ? '<span>DOB on ID</span><span>' + esc(v.dob) + '</span>' : '') + (v.last4 ? '<span>ID number</span><span>•••• ' + esc(v.last4) + ' ' + esc(v.idType || '') + '</span>' : '') + (v.at ? '<span>When</span><span>' + fdt(v.at) + '</span>' : '') + (v.consentUntil ? '<span>DigiLocker consent until</span><span>' + fd(v.consentUntil) + (v.consentUntil < Date.now() ? ' <span class="tag red">expired</span>' : '') + '</span>' : '') + (v.provider ? '<span>Provider</span><span>' + esc(v.provider) + '</span>' : '') + (u.verifyNeed ? '<span>Meets donor policy</span><span><span class="tag warn">no - needs ' + esc(u.verifyNeed) + '</span></span>' : (v.status === 'verified' ? '<span>Meets donor policy</span><span><span class="tag ok">yes</span></span>' : '')) + (v.by ? '<span>By</span><span>' + esc(v.by) + '</span>' : '') + (v.reason ? '<span>Reason</span><span>' + esc(v.reason) + '</span>' : '') + '</div>' +
+    '<h2 style="margin-top:14px">Documents from DigiLocker</h2>' + (u.documents.length ? u.documents.map(d => '<div class="row sm" style="padding:5px 0;border-top:1px solid var(--line)"><span class="b">' + esc(d.name) + '</span><span class="muted">' + esc(d.issuer) + ' · ' + fd(d.at) + '</span>' + (d.file ? '<button class="btn s" data-a="doc" data-id="' + u.id + '" data-d="' + d.id + '" style="flex:none">View</button>' : '<span class="muted" style="flex:none">metadata only</span>') + '</div>').join('') : '<span class="muted sm">None synced.</span>') + '</div></div>' +
+    '<div class="grid g2" style="margin-top:14px"><div><h2>Donations (' + u.donations.length + ')</h2>' + (u.donations.slice(0, 6).map(d => '<div class="sm" style="padding:3px 0">' + fd(d.t) + ' · ' + esc(d.type) + ' · ' + esc(d.place || '') + '</div>').join('') || '<span class="muted sm">None in app</span>') + '<div class="sm muted" style="margin-top:6px">Eligible: ' + (u.eligible ? 'yes' : 'from ' + esc(u.eligibleFrom || '-')) + ' · devices: ' + u.devices + '</div></div>' +
+    '<div><h2>Organ pledge</h2>' + (u.organ && u.organ.pledged ? '<div class="sm"><b>' + esc(u.organ.id) + '</b><br>' + esc((u.organ.organs || []).concat(u.organ.tissues || []).join(', ')) + '<br>Kin: ' + esc((u.organ.kin || {}).name) + ' ' + esc((u.organ.kin || {}).phone) + '</div>' : '<span class="muted sm">Not pledged</span>') + '</div></div>' +
+    '<div class="acts"><button class="btn" data-a="unotify" data-id="' + u.id + '">Send message</button>' + (v.status === 'verified' ? '<button class="btn" data-a="unverify" data-id="' + u.id + '">Remove verification</button>' : '<button class="btn" data-a="uverify" data-id="' + u.id + '">Mark verified</button>') +
+    (u.status === 'suspended' ? '<button class="btn" data-a="unsus" data-id="' + u.id + '">Unsuspend</button>' : '<button class="btn d" data-a="usus" data-id="' + u.id + '">Suspend</button>') + '<button class="btn d" data-a="uerase" data-id="' + u.id + '">Erase data</button><button class="btn" data-a="close">Close</button><button class="btn p" data-a="usave" data-id="' + u.id + '">Save changes</button></div>');
+});
+
+/* verifications */
+PAGES.verif = guard(async () => {
+  const [q, mm] = await Promise.all([api('GET', '/verifications?status=pending'), api('GET', '/users?mismatch=1&size=50')]);
+  main(head('Verifications') + '<h2>Direct ID submissions awaiting review (' + q.items.length + ')</h2>' +
+    (q.items.length ? '<div class="grid g2">' + q.items.map(v => '<div class="card"><div class="row"><div><div class="b">' + esc(v.name) + '</div><div class="muted sm">' + esc(v.idType.toUpperCase()) + ' · <b>' + esc(v.idNumber) + '</b></div></div><span class="muted sm right" style="flex:none">' + fdt(v.created) + '</span></div>' +
+      '<div class="sm" style="margin:8px 0">Profile: ' + esc(v.user.name || '-') + ' · ' + esc(v.user.phone) + ' · DOB ' + esc(v.user.dob || '-') + ' ' + bgTag(v.user.bg) + '</div><img class="doc" id="ph-' + v.id + '" alt="ID photo" style="max-height:230px;object-fit:contain;background:#eee;width:100%">' +
+      '<div class="acts"><button class="btn d" data-a="vrej" data-id="' + v.id + '">Reject</button><button class="btn p" data-a="vok" data-id="' + v.id + '">Approve</button></div></div>').join('') + '</div>' : '<div class="card muted">Nothing waiting. 🎉</div>') +
+    '<h2 style="margin-top:22px">DigiLocker verified, name or DOB differs from profile (' + mm.total + ')</h2>' +
+    (mm.items.length ? '<div class="card" style="padding:0"><table><tbody>' + mm.items.map(u => '<tr class="click" data-a="user" data-id="' + u.id + '"><td class="b">' + esc(u.name) + '</td><td>' + esc(u.phone) + '</td><td>' + vTag(u.verify, u.method) + '</td><td class="right"><span class="btn s">Review</span></td></tr>').join('') + '</tbody></table></div>' : '<div class="card muted">No mismatches.</div>'));
+  for (const v of q.items) { try { const r = await api('GET', '/verifications/' + v.id + '/photo', null, true); if (r.ok) $('#ph-' + v.id).src = URL.createObjectURL(await r.blob()); } catch (e) {} }
+});
+
+/* hospital applications */
+PAGES.hosp = guard(async () => {
+  const [p, a] = await Promise.all([api('GET', '/hospitals?status=pending'), api('GET', '/hospitals?status=approved')]);
+  main(head('Hospital applications') + '<h2>Waiting for approval (' + p.items.length + ')</h2>' +
+    (p.items.length ? '<div class="grid g2">' + p.items.map(h => '<div class="card"><div class="row"><div><div class="b">' + esc(h.name) + '</div><div class="muted sm">' + esc(h.type) + ' · ' + esc(h.city) + '</div></div><span class="muted sm right" style="flex:none">' + fdt(h.appliedAt) + '</span></div>' +
+      '<div class="kv" style="margin-top:8px"><span>Registration no.</span><span><b>' + esc(h.regNo) + '</b></span><span>Address</span><span>' + esc(h.address) + '</span><span>Phone</span><span>' + esc(h.hospPhone) + '</span><span>Applicant</span><span>' + esc(h.contactName || '-') + ' · ' + esc(h.phone) + '</span></div>' +
+      '<div class="acts"><button class="btn d" data-a="hrej" data-id="' + h.userId + '">Reject</button><button class="btn p" data-a="hok" data-id="' + h.userId + '">Approve &amp; create blood bank</button></div></div>').join('') + '</div>' : '<div class="card muted">No applications waiting.</div>') +
+    '<h2 style="margin-top:22px">Approved hospitals (' + a.items.length + ')</h2>' +
+    (a.items.length ? '<div class="card" style="padding:0"><table><thead><tr><th>Name</th><th>Type</th><th>City</th><th>Registration</th><th>Approved</th></tr></thead><tbody>' + a.items.map(h => '<tr><td class="b">' + esc(h.name) + '</td><td>' + esc(h.type) + '</td><td>' + esc(h.city) + '</td><td>' + esc(h.regNo) + '</td><td class="muted sm">' + fdt(h.decidedAt) + '</td></tr>').join('') + '</tbody></table></div>' : '<div class="card muted">None yet.</div>'));
+});
+
+/* requests */
+let Rq = { q: '', status: '', bg: '', page: 1 };
+PAGES.reqs = guard(async () => {
+  const r = await api('GET', '/requests?' + new URLSearchParams(Object.fromEntries(Object.entries(Rq).filter(([, v]) => v !== ''))));
+  main(head('Blood requests') + '<div class="tools"><input id="rq" placeholder="Search patient, hospital, city" value="' + esc(Rq.q) + '" style="min-width:240px"><select id="rs"><option value="">Any status</option>' + ['open', 'fulfilled', 'closed', 'expired'].map(s => '<option' + (Rq.status === s ? ' selected' : '') + '>' + s + '</option>').join('') + '</select>' +
+    '<select id="rb"><option value="">Any group</option>' + BGS.map(g => '<option' + (Rq.bg === g ? ' selected' : '') + '>' + g + '</option>').join('') + '</select></div>' +
+    '<div class="card" style="padding:0;overflow:auto"><table><thead><tr><th>Group</th><th>Patient / hospital</th><th>Units</th><th>Urgency</th><th>Status</th><th>Alerted / offers</th><th>Requester</th><th>Posted</th><th></th></tr></thead><tbody>' +
+    r.items.map(x => '<tr><td>' + bgTag(x.bg) + '</td><td><b>' + esc(x.patient) + '</b><br><span class="muted sm">' + esc(x.hospital) + ', ' + esc(x.city) + '</span></td><td>' + x.received + '/' + x.units + ' <span class="muted sm">' + esc(x.comp) + '</span></td><td><span class="tag ' + (x.urgency === 'critical' ? 'red' : x.urgency === 'urgent' ? 'warn' : '') + '">' + x.urgency + '</span></td><td><span class="tag ' + (x.status === 'open' ? 'warn' : x.status === 'fulfilled' ? 'ok' : '') + '">' + x.status + '</span></td><td>' + x.alerted + ' / ' + x.offers + '</td><td>' + (x.requester.id ? '<a href="#" data-a="user" data-id="' + x.requester.id + '">' + esc(x.requester.name || x.requester.phone) + '</a>' : '-') + '<br><span class="muted sm">' + esc(x.contact) + '</span></td><td class="muted sm">' + fdt(x.created) + '</td>' +
+      '<td class="right" style="white-space:nowrap">' + (x.status === 'open' ? '<button class="btn s" data-a="ralert" data-id="' + x.id + '">Alert more</button> <button class="btn s" data-a="rset" data-id="' + x.id + '" data-s="fulfilled">Fulfilled</button> <button class="btn s d" data-a="rset" data-id="' + x.id + '" data-s="closed">Close</button>' : '<button class="btn s" data-a="rset" data-id="' + x.id + '" data-s="open">Reopen</button>') + ' <button class="btn s d" data-a="rdel" data-id="' + x.id + '">Delete</button></td></tr>').join('') +
+    (r.items.length ? '' : '<tr><td colspan="9" class="muted" style="text-align:center;padding:30px">No requests.</td></tr>') + '</tbody></table></div>' + pager(r, 'rpage'));
+  const f = () => { Rq = { q: $('#rq').value.trim(), status: $('#rs').value, bg: $('#rb').value, page: 1 }; PAGES.reqs(); };
+  let t; $('#rq').oninput = () => { clearTimeout(t); t = setTimeout(f, 350); }; $('#rs').onchange = f; $('#rb').onchange = f;
+});
+
+/* reports */
+PAGES.reports = guard(async () => {
+  const r = await api('GET', '/reports');
+  main(head('Reports') + '<div class="card" style="padding:0;overflow:auto"><table><thead><tr><th>When</th><th>Type</th><th>Reported by</th><th>About</th><th>Reason</th><th>Status</th><th></th></tr></thead><tbody>' +
+    r.items.map(x => '<tr><td class="muted sm">' + fdt(x.at) + '</td><td>' + esc(x.kind) + '</td><td>' + esc(x.by.name || x.by.phone || '-') + '</td><td>' + (x.target ? esc(x.target.summary) + ' <span class="tag">' + esc(x.target.status) + '</span>' : '') + (x.targetUser ? '<br><a href="#" data-a="user" data-id="' + x.targetUser.id + '">' + esc(x.targetUser.name || x.targetUser.phone) + '</a>' + (x.targetUser.status === 'suspended' ? ' <span class="tag red">suspended</span>' : '') : '') + '</td><td>' + esc(x.reason) + '</td><td>' + (x.status === 'open' ? '<span class="tag warn">open</span>' : '<span class="tag ok">' + esc(x.resolution) + '</span>') + '</td>' +
+      '<td class="right" style="white-space:nowrap">' + (x.status === 'open' ? '<button class="btn s" data-a="rep" data-id="' + x.id + '" data-r="dismiss">Dismiss</button> ' + (x.target ? '<button class="btn s d" data-a="rep" data-id="' + x.id + '" data-r="close_request">Close request</button> ' : '') + (x.targetUser ? '<button class="btn s d" data-a="rep" data-id="' + x.id + '" data-r="suspend_user">Suspend user</button>' : '') : '') + '</td></tr>').join('') +
+    (r.items.length ? '' : '<tr><td colspan="7" class="muted" style="text-align:center;padding:30px">No reports.</td></tr>') + '</tbody></table></div>');
+});
+
+/* banks */
+PAGES.banks = guard(async () => {
+  const r = await api('GET', '/banks'); CACHE.banks = r.items;
+  main(head(ME.role === 'admin' ? 'Blood banks' : 'My blood bank', ME.role === 'admin' ? '<button class="btn p" data-a="bankform">+ Add blood bank</button>' : '') +
+    '<div class="card" style="padding:0;overflow:auto"><table><thead><tr><th>Name</th><th>Type</th><th>City</th><th>Hours</th><th>Stock (units)</th><th>Updated</th><th></th></tr></thead><tbody>' +
+    r.items.map(b => '<tr><td class="b">' + esc(b.name) + (b.demo ? ' <span class="tag">demo</span>' : '') + (b.active === false ? ' <span class="tag red">hidden</span>' : '') + '</td><td>' + esc(b.type) + '</td><td>' + esc(b.city) + '</td><td>' + esc(b.hours) + '</td><td class="sm">' + BGS.map(g => '<span style="margin-right:6px;' + ((b.stock[g] || 0) < 5 ? 'color:var(--accent);font-weight:700' : '') + '">' + g + ' ' + (b.stock[g] || 0) + '</span>').join('') + '</td><td class="muted sm">' + fdt(b.updatedAt) + '</td>' +
+      '<td class="right" style="white-space:nowrap"><button class="btn s p" data-a="stock" data-id="' + b.id + '">Stock</button> <button class="btn s" data-a="bankform" data-id="' + b.id + '">Edit</button>' + (ME.role === 'admin' ? ' <button class="btn s d" data-a="bankdel" data-id="' + b.id + '">Delete</button>' : '') + '</td></tr>').join('') +
+    (r.items.length ? '' : '<tr><td colspan="7" class="muted" style="text-align:center;padding:30px">No blood banks yet.</td></tr>') + '</tbody></table></div>');
+});
+PAGES['my-banks'] = PAGES.banks;
+const stockModal = guard(async id => {
+  const r = await api('GET', '/banks'); const b = r.items.find(x => x.id === id); if (!b) return;
+  modal('<h2>Update stock · ' + esc(b.name) + '</h2><p class="muted sm">Units available right now. Donors and patients see this live in the app, so please keep it current.</p><form id="sf"><div class="stockgrid">' + BGS.map(g => '<label>' + g + '<input name="' + g + '" type="number" min="0" max="9999" value="' + (b.stock[g] || 0) + '"></label>').join('') + '</div></form><div class="acts"><button class="btn" data-a="close">Cancel</button><button class="btn p" data-a="stocksave" data-id="' + id + '">Save stock</button></div>');
+});
+const bankForm = guard(async id => {
+  const b = id ? (CACHE.banks || (await api('GET', '/banks')).items).find(x => x.id === id) : {};
+  modal('<h2>' + (id ? 'Edit' : 'Add') + ' blood bank</h2><form id="bf"><div class="row"><label>Name<input name="name" value="' + esc(b.name || '') + '"></label><label>Type<select name="type">' + ['Government', 'Charitable', 'Hospital-based', 'Private'].map(t => '<option' + (b.type === t ? ' selected' : '') + '>' + t + '</option>').join('') + '</select></label></div>' +
+    '<div class="row"><label>Phone<input name="phone" value="' + esc(b.phone || '') + '"></label><label>Opening hours<input name="hours" value="' + esc(b.hours || '') + '" placeholder="24 x 7"></label></div><div class="row"><label>City<input name="city" value="' + esc(b.city || '') + '"></label><label>Address<input name="address" value="' + esc(b.address || '') + '"></label></div>' +
+    '<label>Components</label><div class="row wrap" style="gap:14px;margin-bottom:10px">' + COMPONENTS.map(c => '<label style="margin:0;display:flex;gap:5px;align-items:center;flex:none"><input type="checkbox" data-comp="' + c + '" ' + ((b.components || ['Whole blood']).includes(c) ? 'checked' : '') + ' style="width:auto;margin:0"> ' + c + '</label>').join('') + '</div>' +
+    (ME.role === 'admin' ? '<label style="display:flex;gap:6px;align-items:center"><input type="checkbox" name="active" ' + (b.active === false ? '' : 'checked') + ' style="width:auto;margin:0"> Visible in the app</label>' : '') + mapField(b.lat, b.lng) + '</form><div class="acts"><button class="btn" data-a="close">Cancel</button><button class="btn p" data-a="banksave" data-id="' + (id || '') + '">Save</button></div>');
+  pickMap(b.lat, b.lng);
+});
+
+/* camps */
+PAGES.camps = guard(async () => {
+  const [r, bk] = await Promise.all([api('GET', '/camps'), api('GET', '/banks')]); CACHE.camps = r.items; CACHE.banks = bk.items;
+  main(head('Camps', '<button class="btn p" data-a="campform">+ New camp</button>') + '<div class="card" style="padding:0;overflow:auto"><table><thead><tr><th>Date</th><th>Camp</th><th>Venue</th><th>Host</th><th>Registered</th><th>Status</th><th></th></tr></thead><tbody>' +
+    r.items.map(c => '<tr><td class="b">' + esc(c.date) + '<br><span class="muted sm">' + esc(c.time) + '</span></td><td>' + esc(c.title) + (c.demo ? ' <span class="tag">demo</span>' : '') + '<br><span class="muted sm">' + esc(c.org) + '</span></td><td>' + esc(c.venue) + '</td><td>' + esc(c.host) + '</td><td>' + c.regCount + (c.slots ? ' / ' + c.slots : '') + '</td><td><span class="tag ' + (c.status === 'cancelled' ? 'red' : c.date < new Date().toISOString().slice(0, 10) ? '' : 'ok') + '">' + (c.status === 'cancelled' ? 'cancelled' : c.date < new Date().toISOString().slice(0, 10) ? 'past' : 'upcoming') + '</span></td>' +
+      '<td class="right" style="white-space:nowrap"><button class="btn s" data-a="campregs" data-id="' + c.id + '">Registrants</button> <button class="btn s" data-a="campform" data-id="' + c.id + '">Edit</button> <button class="btn s d" data-a="campdel" data-id="' + c.id + '">Delete</button></td></tr>').join('') +
+    (r.items.length ? '' : '<tr><td colspan="7" class="muted" style="text-align:center;padding:30px">No camps yet.</td></tr>') + '</tbody></table></div>');
+});
+const campForm = guard(id => {
+  const c = id ? CACHE.camps.find(x => x.id === id) : {};
+  modal('<h2>' + (id ? 'Edit' : 'New') + ' camp</h2><form id="cf"><label>Title<input name="title" value="' + esc(c.title || '') + '"></label><div class="row"><label>Date<input type="date" name="date" value="' + esc(c.date || '') + '"></label><label>Time<input name="time" value="' + esc(c.time || '9:00 AM - 3:00 PM') + '"></label></div>' +
+    '<div class="row"><label>Organiser<input name="org" value="' + esc(c.org || '') + '"></label><label>Venue<input name="venue" value="' + esc(c.venue || '') + '"></label></div><div class="row"><label>Slots<input type="number" name="slots" value="' + esc(c.slots || 50) + '"></label>' +
+    (ME.role === 'admin' ? '<label>Hosting blood bank<select name="bankId"><option value="">- none -</option>' + CACHE.banks.map(b => '<option value="' + b.id + '"' + (c.bankId === b.id ? ' selected' : '') + '>' + esc(b.name) + '</option>').join('') + '</select></label>' : '') + '<label>Status<select name="status"><option value="active">Active</option><option value="cancelled"' + (c.status === 'cancelled' ? ' selected' : '') + '>Cancelled</option></select></label></div>' + mapField(c.lat, c.lng) +
+    '</form><div class="acts"><button class="btn" data-a="close">Cancel</button><button class="btn p" data-a="campsave" data-id="' + (id || '') + '">Save</button></div>');
+  pickMap(c.lat, c.lng);
+});
+
+/* centres */
+PAGES.centres = guard(async () => {
+  const r = await api('GET', '/centres'); CACHE.centres = r.items;
+  main(head('Transplant & eye-bank centres', '<button class="btn p" data-a="centreform">+ Add centre</button>') + '<div class="card" style="padding:0;overflow:auto"><table><thead><tr><th>Name</th><th>Programmes</th><th>City</th><th>Phone</th><th>Hours</th><th></th></tr></thead><tbody>' +
+    r.items.map(c => '<tr><td class="b">' + esc(c.name) + (c.demo ? ' <span class="tag">demo</span>' : '') + (c.active === false ? ' <span class="tag red">hidden</span>' : '') + '</td><td>' + (c.programs || []).map(p => '<span class="tag">' + esc(p) + '</span> ').join('') + '</td><td>' + esc(c.city) + '</td><td>' + esc(c.phone) + '</td><td>' + esc(c.hours) + '</td><td class="right" style="white-space:nowrap"><button class="btn s" data-a="centreform" data-id="' + c.id + '">Edit</button> <button class="btn s d" data-a="centredel" data-id="' + c.id + '">Delete</button></td></tr>').join('') +
+    (r.items.length ? '' : '<tr><td colspan="6" class="muted" style="text-align:center;padding:30px">No centres yet. Only add licensed transplant hospitals and eye banks.</td></tr>') + '</tbody></table></div>');
+});
+const centreForm = id => {
+  const c = id ? CACHE.centres.find(x => x.id === id) : {};
+  modal('<h2>' + (id ? 'Edit' : 'Add') + ' centre</h2><form id="tf"><label>Name<input name="name" value="' + esc(c.name || '') + '"></label><div class="row"><label>Phone<input name="phone" value="' + esc(c.phone || '') + '"></label><label>Hours<input name="hours" value="' + esc(c.hours || '') + '"></label></div>' +
+    '<div class="row"><label>City<input name="city" value="' + esc(c.city || '') + '"></label><label>Address<input name="address" value="' + esc(c.address || '') + '"></label></div><label>Programmes (comma separated)<input name="programs" value="' + esc((c.programs || []).join(', ')) + '" placeholder="Kidney, Liver, Cornea"></label>' +
+    '<label style="display:flex;gap:6px;align-items:center"><input type="checkbox" name="active" ' + (c.active === false ? '' : 'checked') + ' style="width:auto;margin:0"> Visible in the app</label>' + mapField(c.lat, c.lng) + '</form><div class="acts"><button class="btn" data-a="close">Cancel</button><button class="btn p" data-a="centresave" data-id="' + (id || '') + '">Save</button></div>');
+  pickMap(c.lat, c.lng);
+};
+
+/* organ */
+let Oq = { q: '', page: 1 };
+PAGES.organ = guard(async () => {
+  const r = await api('GET', '/organ?' + new URLSearchParams({ q: Oq.q, page: Oq.page }));
+  main(head('Organ & tissue pledges') + '<div class="tools"><input id="oq" placeholder="Search name, phone, pledge ID" value="' + esc(Oq.q) + '" style="min-width:260px"></div><div class="card" style="padding:0;overflow:auto"><table><thead><tr><th>Donor</th><th>Pledge</th><th>Organs & tissues</th><th>Next of kin</th><th>Family told</th><th>NOTTO</th><th>Date</th></tr></thead><tbody>' +
+    r.items.map(x => '<tr class="click" data-a="user" data-id="' + x.id + '"><td class="b">' + esc(x.name) + '<br><span class="muted sm">' + esc(x.phone) + ' · ' + esc(x.city) + '</span></td><td>' + esc(x.pledgeId) + '<br>' + (x.verified ? '<span class="tag ok">verified</span>' : '') + '</td><td class="sm">' + esc((x.organs || []).concat(x.tissues || []).join(', ')) + '</td><td class="sm">' + esc((x.kin || {}).name) + '<br>' + esc((x.kin || {}).phone) + '</td><td>' + (x.informed ? '✔' : '-') + '</td><td>' + (x.notto ? '✔' : '-') + '</td><td class="muted sm">' + fd(x.at) + '</td></tr>').join('') +
+    (r.items.length ? '' : '<tr><td colspan="7" class="muted" style="text-align:center;padding:30px">No pledges yet.</td></tr>') + '</tbody></table></div>' + pager(r, 'opage') + '<p class="muted sm">Pledge details are sensitive. Do not share them outside the transplant coordination process.</p>');
+  let t; $('#oq').oninput = () => { clearTimeout(t); t = setTimeout(() => { Oq = { q: $('#oq').value.trim(), page: 1 }; PAGES.organ(); }, 350); };
+});
+
+/* broadcast */
+PAGES.broadcast = guard(async () => {
+  const h = await api('GET', '/broadcasts');
+  main(head('Broadcast a notification') + '<div class="grid g2"><div class="card"><h2>New message</h2><form id="bcf"><label>Title (English)<input name="title" maxlength="80"></label><label>Message (English)<textarea name="body" rows="3" maxlength="300"></textarea></label>' +
+    '<label>Title (தமிழ்) <span class="muted">optional</span><input name="titleTa" maxlength="80"></label><label>Message (தமிழ்) <span class="muted">optional</span><textarea name="bodyTa" rows="3" maxlength="300"></textarea></label>' +
+    '<h2 style="margin-top:8px">Audience</h2><div class="row"><label>City<input name="city" placeholder="All cities"></label><label>Blood group<select name="bg"><option value="">All groups</option>' + BGS.map(g => '<option>' + g + '</option>').join('') + '</select></label></div>' +
+    '<label style="display:flex;gap:6px;align-items:center"><input type="checkbox" name="verified" style="width:auto;margin:0"> Verified users only</label><label style="display:flex;gap:6px;align-items:center"><input type="checkbox" name="listed" style="width:auto;margin:0"> Donors currently live on the map only</label></form>' +
+    '<div class="acts"><button class="btn" data-a="bcdry">Count recipients</button><button class="btn p" data-a="bcsend">Send now</button></div><p class="muted sm">Delivered to the in-app inbox and as a push notification. Users with Tamil selected receive the Tamil text when provided.</p></div>' +
+    '<div class="card"><h2>Recent broadcasts</h2>' + (h.items.map(b => '<div style="padding:8px 0;border-top:1px solid var(--line)"><div class="b">' + esc(b.title) + '</div><div class="sm muted">' + esc(b.body) + '</div><div class="sm muted">' + fdt(b.at) + ' · ' + b.count + ' recipients · ' + esc(b.by) + '</div></div>').join('') || '<span class="muted">None sent yet.</span>') + '</div></div>');
+});
+
+/* staff */
+PAGES.staff = guard(async () => {
+  const [s, b] = await Promise.all([api('GET', '/staff'), api('GET', '/banks')]); CACHE.banks = b.items; CACHE.staff = s.items;
+  main(head('Staff & access', '<button class="btn p" data-a="staffform">+ Add account</button>') + '<p class="muted">Admins can manage everything. Staff accounts are limited to one blood bank: its stock and its camps.</p><div class="card" style="padding:0"><table><thead><tr><th>Name</th><th>Email</th><th>Role</th><th>Blood bank</th><th>Last login</th><th></th></tr></thead><tbody>' +
+    s.items.map(a => '<tr><td class="b">' + esc(a.name) + (a.active ? '' : ' <span class="tag red">disabled</span>') + '</td><td>' + esc(a.email) + '</td><td><span class="tag ' + (a.role === 'admin' ? 'red' : '') + '">' + a.role + '</span></td><td>' + esc((b.items.find(x => x.id === a.bankId) || {}).name || '-') + '</td><td class="muted sm">' + fdt(a.lastLogin) + '</td><td class="right" style="white-space:nowrap"><button class="btn s" data-a="staffform" data-id="' + a.id + '">Edit</button> <button class="btn s d" data-a="staffdel" data-id="' + a.id + '">Delete</button></td></tr>').join('') + '</tbody></table></div>');
+});
+const staffForm = id => {
+  const a = id ? CACHE.staff.find(x => x.id === id) : {};
+  modal('<h2>' + (id ? 'Edit' : 'Add') + ' account</h2><form id="stf"><label>Name<input name="name" value="' + esc(a.name || '') + '"></label>' + (id ? '' : '<label>Email<input name="email" type="email"></label><label>Role<select name="role" id="srole"><option value="staff">Blood bank staff</option><option value="admin">Admin</option></select></label>') +
+    ((!id || a.role === 'staff') ? '<label id="sbank">Blood bank<select name="bankId">' + CACHE.banks.map(b => '<option value="' + b.id + '"' + (a.bankId === b.id ? ' selected' : '') + '>' + esc(b.name) + '</option>').join('') + '</select></label>' : '') +
+    '<label>' + (id ? 'New password (leave empty to keep)' : 'Password (10+ characters)') + '<input name="password" type="password" autocomplete="new-password"></label>' + (id ? '<label style="display:flex;gap:6px;align-items:center"><input type="checkbox" name="active" ' + (a.active ? 'checked' : '') + ' style="width:auto;margin:0"> Account enabled</label>' : '') +
+    '</form><div class="acts"><button class="btn" data-a="close">Cancel</button><button class="btn p" data-a="staffsave" data-id="' + (id || '') + '">Save</button></div>');
+  const r = $('#srole'); if (r) r.onchange = () => { $('#sbank').style.display = r.value === 'staff' ? '' : 'none'; };
+};
+
+/* settings & audit */
+PAGES.settings = guard(async () => {
+  const { config: c } = await api('GET', '/config');
+  const num = (k, l) => '<label>' + l + '<input name="' + k + '" type="number" value="' + c[k] + '"></label>';
+  main(head('Settings') + '<div class="grid g2"><div class="card"><h2>Rules & limits</h2><p class="muted sm">These apply immediately to eligibility checks, donor matching and request limits.</p><form id="cfgf"><div class="row">' + num('gapMen', 'Days between donations (men)') + num('gapWomen', 'Days between donations (women)') + '</div><div class="row">' + num('minAge', 'Minimum age') + num('maxAge', 'Maximum age') + '</div><div class="row">' + num('minWeight', 'Minimum weight (kg)') + num('requestExpiryHours', 'Close requests this many hours after needed-by') + '</div>' +
+    '<div class="row">' + num('alertMax', 'Max donors alerted per request') + num('alertRadiusKm', 'Alert radius (km)') + '</div><div class="row">' + num('presenceFreshMin', 'Show donor on map if seen within (min)') + num('requestsPerHour', 'Max requests per user per hour') + '</div>' +
+    '<h2 style="margin-top:6px">Document verification</h2><div class="row"><label>Who may donate / be listed<select name="verifyPolicy"><option value="digilocker"' + (c.verifyPolicy === 'digilocker' ? ' selected' : '') + '>DigiLocker-verified only (recommended)</option><option value="any"' + (c.verifyPolicy === 'any' ? ' selected' : '') + '>Any approved verification</option></select></label><label>Driving licence<select name="verifyRequireLicence"><option value="">Optional (Aadhaar is always required)</option><option value="1"' + (c.verifyRequireLicence ? ' selected' : '') + '>Required as well</option></select></label></div>' +
+    '<label style="display:flex;gap:6px;align-items:center"><input type="checkbox" name="verifyAllowSkip" ' + (c.verifyAllowSkip ? 'checked' : '') + ' style="width:auto;margin:0"> Onboarding offers "I only need to request blood" (they still cannot donate until verified)</label>' +
+    '<label>Announcement banner shown in the app<input name="announcement" value="' + esc(c.announcement) + '"></label><label style="display:flex;gap:6px;align-items:center"><input type="checkbox" name="maintenance" ' + (c.maintenance ? 'checked' : '') + ' style="width:auto;margin:0"> Maintenance mode (blocks the app API)</label></form><div class="acts"><button class="btn p" data-a="cfgsave">Save settings</button></div></div>' +
+    '<div class="card"><h2>Data</h2><p class="muted sm">Exports include personal data. Handle under your privacy policy; each export is written to the audit log.</p><div class="row wrap" style="gap:8px;justify-content:flex-start"><a class="btn" href="#" data-a="export" data-k="users" style="flex:none">Export users CSV</a><a class="btn" href="#" data-a="export" data-k="donations" style="flex:none">Export donations CSV</a></div>' +
+    '<h2 style="margin-top:22px">Demo data</h2><p class="muted sm">Removes everything created by <code>node seed.js</code> (sample banks, camps, centres and fake donors). Run this before launch.</p><button class="btn d" data-a="demopurge">Delete demo data</button></div></div>');
+});
+PAGES.audit = guard(async (p) => {
+  const r = await api('GET', '/audit?page=' + (p || 1) + '&size=50');
+  main(head('Audit log') + '<div class="card" style="padding:0;overflow:auto"><table><thead><tr><th>When</th><th>Who</th><th>Action</th><th>Target</th><th>Details</th></tr></thead><tbody>' + r.items.map(a => '<tr><td class="muted sm">' + fdt(a.at) + '</td><td>' + esc(a.by) + ' <span class="tag">' + a.role + '</span></td><td class="b">' + esc(a.action) + '</td><td class="sm">' + esc(a.target) + '</td><td class="muted sm">' + esc(JSON.stringify(a.meta || {}).slice(0, 120)) + '</td></tr>').join('') + '</tbody></table></div>' + pager(r, 'apage'));
+});
+
+/* ---------- actions ---------- */
+const ACT = {
+  close: closeModal, refresh: () => PAGES.dash(),
+  user: d => openUser(d.id),
+  upage: d => { Uq.page = +d.p; PAGES.users(); }, rpage: d => { Rq.page = +d.p; PAGES.reqs(); }, opage: d => { Oq.page = +d.p; PAGES.organ(); }, apage: d => PAGES.audit(+d.p),
+  export: guard(async d => { const r = await api('GET', '/export/' + d.k, null, true); if (!r.ok) throw new Error('Export failed'); const a = document.createElement('a'); a.href = URL.createObjectURL(await r.blob()); a.download = 'lifelink-' + d.k + '.csv'; a.click(); }),
+  usave: guard(async d => { const v = formVals($('#uf')); v.available = !!v.available; await api('PATCH', '/users/' + d.id, v); closeModal(); toast('Saved'); PAGES.users(); }),
+  uverify: guard(async d => { await api('POST', '/users/' + d.id + '/verify', {}); closeModal(); toast('Marked as verified'); PAGES.users(); }),
+  unverify: guard(async d => { const r = await promptBox('Reason for removing verification', 'Shown to the user'); if (r === null) return; await api('POST', '/users/' + d.id + '/unverify', { reason: r }); closeModal(); toast('Verification removed'); PAGES.users(); }),
+  usus: guard(async d => { const r = await promptBox('Reason for suspending this account', 'Internal note'); if (r === null) return; await api('POST', '/users/' + d.id + '/suspend', { reason: r }); closeModal(); toast('Suspended'); PAGES.users(); }),
+  unsus: guard(async d => { await api('POST', '/users/' + d.id + '/unsuspend'); closeModal(); toast('Account restored'); PAGES.users(); }),
+  uerase: guard(async d => { if (!await confirmBox('Permanently erase this user and their data? This cannot be undone.', 'Erase')) return; await api('DELETE', '/users/' + d.id); closeModal(); toast('User erased'); go(PAGE); }),
+  unotify: guard(async d => { const t = await promptBox('Message title'); if (!t) return; const b = await promptBox('Message text'); if (!b) return; await api('POST', '/users/' + d.id + '/notify', { title: t, body: b }); toast('Sent'); }),
+  doc: guard(async d => { const r = await api('GET', '/users/' + d.id + '/doc/' + d.d, null, true); if (!r.ok) throw new Error('File not available'); window.open(URL.createObjectURL(await r.blob()), '_blank'); }),
+  hok: guard(async d => { await api('POST', '/hospitals/' + d.id + '/decision', { approve: true }); toast('Approved - blood bank created'); PAGES.hosp(); refreshBadges(); }),
+  hrej: guard(async d => { const r = await promptBox('Reason (shown to the applicant)', 'e.g. Licence number could not be verified'); if (r === null) return; await api('POST', '/hospitals/' + d.id + '/decision', { approve: false, reason: r }); toast('Rejected'); PAGES.hosp(); refreshBadges(); }),
+  vok: guard(async d => { await api('POST', '/verifications/' + d.id + '/decision', { decision: 'approve' }); toast('Approved'); PAGES.verif(); refreshBadges(); }),
+  vrej: guard(async d => { const r = await promptBox('Reason (shown to the user)', 'e.g. Photo is blurry'); if (r === null) return; await api('POST', '/verifications/' + d.id + '/decision', { decision: 'reject', reason: r }); toast('Rejected'); PAGES.verif(); refreshBadges(); }),
+  rset: guard(async d => { await api('PATCH', '/requests/' + d.id, { status: d.s }); toast('Updated'); PAGES.reqs(); }),
+  ralert: guard(async d => { const r = await api('POST', '/requests/' + d.id + '/alert'); toast('Alerted ' + r.alerted + ' more donors'); PAGES.reqs(); }),
+  rdel: guard(async d => { if (!await confirmBox('Delete this request?', 'Delete')) return; await api('DELETE', '/requests/' + d.id); PAGES.reqs(); }),
+  rep: guard(async d => { await api('POST', '/reports/' + d.id + '/resolve', { action: d.r }); toast('Resolved'); PAGES.reports(); refreshBadges(); }),
+  stock: d => stockModal(d.id),
+  stocksave: guard(async d => { await api('PUT', '/banks/' + d.id + '/stock', { stock: formVals($('#sf')) }); closeModal(); toast('Stock updated'); go(PAGE); }),
+  bankform: d => bankForm(d.id),
+  banksave: guard(async d => {
+    const v = formVals($('#bf')); v.components = [...document.querySelectorAll('[data-comp]')].filter(c => c.checked).map(c => c.dataset.comp);
+    if (d.id) await api('PUT', '/banks/' + d.id, v); else await api('POST', '/banks', v); closeModal(); toast('Saved'); PAGES.banks();
+  }),
+  bankdel: guard(async d => { if (!await confirmBox('Delete this blood bank?', 'Delete')) return; await api('DELETE', '/banks/' + d.id); PAGES.banks(); }),
+  campform: d => campForm(d.id),
+  campsave: guard(async d => { const v = formVals($('#cf')); if (d.id) await api('PUT', '/camps/' + d.id, v); else await api('POST', '/camps', v); closeModal(); toast('Saved'); PAGES.camps(); }),
+  campdel: guard(async d => { if (!await confirmBox('Delete this camp?', 'Delete')) return; await api('DELETE', '/camps/' + d.id); PAGES.camps(); }),
+  campregs: guard(async d => { const r = await api('GET', '/camps/' + d.id + '/regs'); modal('<h2>Registrants (' + r.items.length + ')</h2>' + (r.items.map(u => '<div class="row sm" style="padding:6px 0;border-top:1px solid var(--line)"><b>' + esc(u.name) + '</b><span>' + bgTag(u.bg) + '</span><span>' + esc(u.phone) + '</span><span>' + (u.verified ? '<span class="tag ok">verified</span>' : '') + '</span></div>').join('') || '<p class="muted">Nobody has registered yet.</p>') + '<div class="acts"><button class="btn" data-a="close">Close</button></div>'); }),
+  centreform: d => centreForm(d.id),
+  centresave: guard(async d => { const v = formVals($('#tf')); v.programs = v.programs.split(',').map(s => s.trim()).filter(Boolean); if (d.id) await api('PUT', '/centres/' + d.id, v); else await api('POST', '/centres', v); closeModal(); toast('Saved'); PAGES.centres(); }),
+  centredel: guard(async d => { if (!await confirmBox('Delete this centre?', 'Delete')) return; await api('DELETE', '/centres/' + d.id); PAGES.centres(); }),
+  bcdry: guard(async () => { const r = await api('POST', '/broadcast', bcBody(true)); toast(r.count + ' recipients'); }),
+  bcsend: guard(async () => { const b = bcBody(false), n = (await api('POST', '/broadcast', Object.assign({}, b, { dryRun: true }))).count; if (!await confirmBox('Send to ' + n + ' people?', 'Send')) return; const r = await api('POST', '/broadcast', b); toast('Sent to ' + r.count); PAGES.broadcast(); }),
+  staffform: d => staffForm(d.id),
+  staffsave: guard(async d => { const v = formVals($('#stf')); if (d.id) await api('PUT', '/staff/' + d.id, v); else await api('POST', '/staff', v); closeModal(); toast('Saved'); PAGES.staff(); }),
+  staffdel: guard(async d => { if (!await confirmBox('Delete this account?', 'Delete')) return; await api('DELETE', '/staff/' + d.id); PAGES.staff(); }),
+  cfgsave: guard(async () => { const v = formVals($('#cfgf')); v.verifyRequireLicence = !!v.verifyRequireLicence; await api('PUT', '/config', v); toast('Settings saved'); }),
+  demopurge: guard(async () => { if (!await confirmBox('Delete all demo banks, camps, centres and fake donors?', 'Delete demo data')) return; const r = await api('DELETE', '/demo'); toast('Removed ' + r.users + ' users, ' + r.banks + ' banks'); }),
+};
+function bcBody(dry) { const v = formVals($('#bcf')); return { title: v.title, body: v.body, titleTa: v.titleTa, bodyTa: v.bodyTa, audience: { city: v.city || undefined, bg: v.bg || undefined, verified: v.verified || undefined, listed: v.listed || undefined }, dryRun: dry }; }
+document.addEventListener('click', e => {
+  const g = e.target.closest('[data-nav-go]'); if (g) return go(g.dataset.navGo);
+  const b = e.target.closest('[data-a]'); if (!b) return;
+  if (b.tagName === 'A') e.preventDefault();
+  const f = ACT[b.dataset.a]; if (f) f(b.dataset);
+});
+
+/* ---------- login / change password ---------- */
+function renderLogin() {
+  $('#root').innerHTML = '<div id="login"><div style="text-align:center;margin-bottom:18px"><div style="font-size:40px">🩸</div><h1>LifeLink Admin</h1><p class="muted">Sign in to manage donors, blood banks and camps.</p></div><div class="card"><form id="lf"><label>Email<input name="email" type="email" autocomplete="username" required></label><label>Password<input name="password" type="password" autocomplete="current-password" required></label><button class="btn p" style="width:100%;padding:10px" type="submit">Sign in</button></form></div></div>';
+  $('#lf').onsubmit = guard(async e => { e.preventDefault(); const v = formVals(e.target); const j = await fetch('/api/admin/login', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(v) }).then(async r => { const x = await r.json(); if (!r.ok) throw new Error(x.error); return x; }); TOKEN = j.token; ME = j.admin; sessionStorage.setItem('adm', TOKEN); PAGE = 'dash'; renderShell(); });
+}
+function changePw() {
+  const m = modal('<h2>Change password</h2><form id="pf"><label>Current password<input name="current" type="password" autocomplete="current-password"></label><label>New password (10+ characters)<input name="next" type="password" autocomplete="new-password"></label></form><div class="acts"><button class="btn" data-a="close">Cancel</button><button class="btn p" id="pfs">Change</button></div>');
+  $('#pfs', m).onclick = guard(async () => { const r = await api('POST', '/password', formVals($('#pf'))); TOKEN = r.token; sessionStorage.setItem('adm', TOKEN); closeModal(); toast('Password changed'); });
+}
+(async function boot() {
+  if (!TOKEN) return renderLogin();
+  try { ME = (await api('GET', '/me')).admin; renderShell(); } catch (e) { renderLogin(); }
+})();
+</script>
+</body>
+</html>

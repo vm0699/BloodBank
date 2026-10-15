@@ -1,0 +1,19 @@
+{
+  "name": "lifelink-server",
+  "version": "1.0.0",
+  "private": true,
+  "description": "LifeLink backend and admin portal: phone-OTP accounts, donor matching, requests, camps, DigiLocker, push. MongoDB for storage.",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js",
+    "test": "node --test test/api.test.js test/aggregator.test.js test/setu.test.js test/twilio.test.js test/mongo.test.js test/live.test.js test/hardening.test.js test/roles.test.js",
+    "seed": "node seed.js",
+    "db": "mongo\\start-db.cmd",
+    "db:setup": "node mongo/setup-db.js",
+    "db:migrate": "node tools/migrate-to-mongo.js"
+  },
+  "engines": { "node": ">=18" },
+  "dependencies": {
+    "mongodb": "^6.21.0"
+  }
+}

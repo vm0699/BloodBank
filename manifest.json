@@ -1,0 +1,13 @@
+{
+  "name": "LifeLink - Blood & Organ Donation",
+  "short_name": "LifeLink",
+  "description": "Find blood donors and recipients near you on a live map, verify with DigiLocker, and pledge organ donation. Works offline.",
+  "start_url": "./index.html",
+  "display": "standalone",
+  "background_color": "#FFFAF9",
+  "theme_color": "#8E1B1B",
+  "orientation": "portrait",
+  "icons": [
+    { "src": "icon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any" }
+  ]
+}

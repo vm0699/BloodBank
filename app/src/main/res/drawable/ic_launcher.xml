@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="utf-8"?>
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+    <path android:fillColor="#8E1B1B"
+        android:pathData="M54,4 C26,4 4,26 4,54 C4,82 26,104 54,104 C82,104 104,82 104,54 C104,26 82,4 54,4Z"/>
+    <!-- blood drop -->
+    <path android:fillColor="#FFFAF9"
+        android:pathData="M54,22 C54,22 34,46 34,60 C34,71 43,80 54,80 C65,80 74,71 74,60 C74,46 54,22 54,22Z"/>
+    <!-- heart cut-out -->
+    <path android:fillColor="#C62828"
+        android:pathData="M54,70 C54,70 44,63 44,57 C44,53 47,51 50,51 C52,51 53.5,52.2 54,53.5 C54.5,52.2 56,51 58,51 C61,51 64,53 64,57 C64,63 54,70 54,70Z"/>
+</vector>

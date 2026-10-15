@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="utf-8"?>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools">
+    <!-- Debug builds may talk to a backend on the local network over http (e.g. -PapiBase=http://192.168.1.5:8787). Release stays https-only. -->
+    <application
+        android:usesCleartextTraffic="true"
+        tools:replace="android:usesCleartextTraffic" />
+</manifest>

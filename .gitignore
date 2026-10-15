@@ -1,0 +1,32 @@
+*.iml
+.gradle
+/local.properties
+/.idea/caches
+/.idea/libraries
+/.idea/modules.xml
+/.idea/workspace.xml
+/.idea/navEditor.xml
+/.idea/assetWizardSettings.xml
+.DS_Store
+/build
+/captures
+.externalNativeBuild
+.cxx
+local.properties
+
+# Built application files
+app/build/
+*.apk
+*.aab
+server/data
+.claude/
+server/.env
+
+# LifeLink-only MongoDB: data files, logs, admin secret, node modules
+server/mongo/data/
+server/mongo/log/
+server/mongo/dbadmin.secret
+server/node_modules/
+server/backups/
+*.docx
+docs/*.pdf

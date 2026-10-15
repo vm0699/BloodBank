@@ -1,0 +1,36 @@
+# Render blueprint for LifeLink (https://render.com). Create a "Blueprint" from this repo, then fill the secrets marked sync:false.
+# Database: MongoDB Atlas - paste its connection string into MONGO_URI.
+#
+# TEST PHASE (now): login codes are shown on screen (DEV_OTP=1), so NODE_ENV must NOT be "production".
+# GO-LIVE: when Twilio is ready, change NODE_ENV to production, delete DEV_OTP, set SMS_PROVIDER=twilio_verify and add
+#          TWILIO_ACCOUNT_SID, TWILIO_AUTH_TOKEN, TWILIO_VERIFY_SID in the Render dashboard (Environment tab).
+services:
+  - type: web
+    name: lifelink-api
+    runtime: node
+    region: singapore                 # closest Render region to India
+    plan: starter                     # paid: stays awake. "free" sleeps when idle and the first request takes ~1 minute
+    buildCommand: cd server && npm ci --omit=dev
+    startCommand: cd server && node server.js
+    healthCheckPath: /api/health
+    autoDeploy: true
+    numInstances: 1                   # keep at 1: the live map and in-memory working set live in one process
+    envVars:
+      - { key: NODE_VERSION, value: "22" }
+      - { key: NODE_ENV, value: staging }
+      - { key: TRUST_PROXY, value: "1" }
+      - { key: PUBLIC_BASE_URL, sync: false }        # your Render address, e.g. https://lifelink-api.onrender.com
+      - { key: MONGO_URI, sync: false }              # mongodb+srv://...  (database name /lifelink)
+      - { key: JWT_SECRET, generateValue: true }
+      - { key: ADMIN_EMAIL, sync: false }
+      - { key: ADMIN_PASSWORD, sync: false }
+      - { key: SUPPORT_EMAIL, sync: false }
+      # OTP: console + DEV_OTP until Twilio credentials exist
+      - { key: SMS_PROVIDER, value: console }
+      - { key: DEV_OTP, value: "1" }
+      # DigiLocker (Setu sandbox)
+      - { key: DL_PROVIDER, value: setu }
+      - { key: SETU_ENV, value: sandbox }
+      - { key: SETU_PRODUCT_INSTANCE_ID, sync: false }
+      - { key: SETU_CLIENT_ID, sync: false }
+      - { key: SETU_CLIENT_SECRET, sync: false }
