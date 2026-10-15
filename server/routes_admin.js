@@ -9,7 +9,7 @@ const A = require('./lib/auth');
 const { HttpError, bad, str, num, isDay, oneOf } = require('./lib/http');
 const { validLL } = require('./lib/geo');
 
-module.exports = function register(R, { store, core, env, dataDir, limiter }) {
+module.exports = function register(R, { store, core, dl, env, dataDir, limiter }) {
   const adm = { auth: 'admin' }, only = { auth: 'admin', role: 'admin' };
   const today = () => core.dayKey(Date.now());
   const audit = (a, action, target, meta) => store.insert('audit', { at: Date.now(), by: a.email, role: a.role, action, target: target || '', meta: meta || {} });
@@ -129,6 +129,17 @@ module.exports = function register(R, { store, core, env, dataDir, limiter }) {
   });
 
   /* ---------- direct verifications ---------- */
+  /* ---------- system check: what is this server actually configured with, and does it work? ---------- */
+  R.add('GET', '/api/admin/diagnostics', only, async () => {
+    const sms = require('./lib/sms');
+    let db = 'down'; try { db = await store.health(); } catch (e) { db = 'down: ' + String(e.message).slice(0, 120); }
+    return {
+      time: new Date().toISOString(), nodeEnv: env.NODE_ENV || '', publicBaseUrl: env.PUBLIC_BASE_URL || '', database: db, devOtp: env.DEV_OTP === '1',
+      sms: { provider: sms.provider(), missing: sms.missing() || '' }, digilocker: await dl.diagnose(),
+      users: store.list('users').length, hospitalsPending: store.list('users').filter(u => u.hospital && u.hospital.status === 'pending').length
+    };
+  });
+
   /* ---------- hospital applications (account type "hospital") ---------- */
   const hospRow = u => ({ userId: u.id, phone: u.phone, contactName: u.name || '', status: u.hospital.status, reason: u.hospital.reason || '', appliedAt: u.hospital.appliedAt || 0, decidedAt: u.hospital.decidedAt || 0,
     name: u.hospital.name, type: u.hospital.type, regNo: u.hospital.regNo, address: u.hospital.address, city: u.hospital.city, hospPhone: u.hospital.phone, lat: u.hospital.lat, lng: u.hospital.lng, bankId: u.hospital.bankId || '' });

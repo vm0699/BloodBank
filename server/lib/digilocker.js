@@ -85,9 +85,10 @@ module.exports = function digilocker({ store, core, env, dataDir }) {
     profile: env.AGG_PROFILE_PATH || '/digilocker/eaadhaar', file: env.AGG_FILE_PATH || '/digilocker/issued-file',
     signup: env.AGG_SIGNUP || 'PINLESS', consentDays: +env.AGG_CONSENT_DAYS || 30
   };
+  const clean = v => String(v || '').trim().replace(/^["']+|["']+$/g, '').trim();   // dashboards often keep a trailing space or quotes
   const SETU = {
     base: (env.SETU_BASE || (env.SETU_ENV === 'production' ? 'https://dg.setu.co' : 'https://dg-sandbox.setu.co')).replace(/\/$/, ''),
-    id: env.SETU_CLIENT_ID || '', secret: env.SETU_CLIENT_SECRET || '', instance: env.SETU_PRODUCT_INSTANCE_ID || ''
+    id: clean(env.SETU_CLIENT_ID), secret: clean(env.SETU_CLIENT_SECRET), instance: clean(env.SETU_PRODUCT_INSTANCE_ID)
   };
   const PROVIDER = String(env.DL_PROVIDER || (ID ? 'oauth' : SETU.id ? 'setu' : AGG.key ? 'aggregator' : 'mock')).toLowerCase();
   const MOCK = PROVIDER === 'mock';
@@ -339,7 +340,19 @@ module.exports = function digilocker({ store, core, env, dataDir }) {
     sessions.delete(id);
     return s.result;
   }
-  return { start, mockLoginPage, mockLogin, mockOtp, mockConsent, callback, result, MOCK, PROVIDER, docType, IDENTITY };
+  // Safe self-test for the admin "System check": makes the real create-request call and reports what Setu answered.
+  async function diagnose() {
+    const out = { provider: PROVIDER, publicBaseUrl: pub(), publicBaseIsHttps: /^https:\/\//.test(pub()) };
+    if (PROVIDER !== 'setu') return out;
+    out.setu = { base: SETU.base, clientIdLength: SETU.id.length, clientSecretLength: SETU.secret.length, productInstanceLength: SETU.instance.length };
+    try {
+      const j = await setuCall('POST', '/api/digilocker/', { redirectUrl: pub() + '/api/digilocker/return/system-check' });
+      out.setu.ok = !!pick(j, 'data.url|url'); out.setu.message = out.setu.ok ? 'Setu accepted the request and returned a consent link.' : 'Setu answered without a consent link.';
+    } catch (e) { out.setu.ok = false; out.setu.message = String(e.message).slice(0, 300); }
+    return out;
+  }
+
+  return { diagnose, start, mockLoginPage, mockLogin, mockOtp, mockConsent, callback, result, MOCK, PROVIDER, docType, IDENTITY };
 };
 module.exports.nameMatches = nameMatches;
 module.exports.IDENTITY = IDENTITY;

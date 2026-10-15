@@ -52,3 +52,11 @@ test('production refuses to start with DEV_OTP on', () => {
   const r = spawnSync(process.execPath, [path.join(__dirname, '..', 'server.js')], { env: Object.assign({}, process.env, { NODE_ENV: 'production', DEV_OTP: '1', PORT: '0' }), encoding: 'utf8', timeout: 8000 });
   assert.equal(r.status, 1); assert.match(r.stderr, /DEV_OTP/);
 });
+
+test('admin system check reports database, SMS and DigiLocker, and is admin-only', async () => {
+  assert.equal((await fetch(base + '/api/admin/diagnostics')).status, 401);
+  const lg = await (await fetch(base + '/api/admin/login', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ email: 'admin@lifelink.local', password: 'correct-horse-battery' }) })).json();
+  const r = await (await fetch(base + '/api/admin/diagnostics', { headers: { Authorization: 'Bearer ' + lg.token } })).json();
+  assert.equal(r.database, 'file'); assert.equal(r.digilocker.provider, 'mock'); assert.equal(r.sms.provider, 'console'); assert.equal(r.devOtp, true);
+  assert.ok(!JSON.stringify(r).includes('correct-horse-battery'));
+});

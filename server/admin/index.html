@@ -105,7 +105,7 @@ const vTag = (s, m) => s === 'verified' ? '<span class="tag ok">verified' + (m ?
 function pager(r, act) { const pages = Math.max(1, Math.ceil(r.total / r.size)); return '<div class="pager"><span class="muted sm">' + r.total + ' total</span><button class="btn s" data-a="' + act + '" data-p="' + (r.page - 1) + '" ' + (r.page <= 1 ? 'disabled' : '') + '>Prev</button><span class="sm">' + r.page + ' / ' + pages + '</span><button class="btn s" data-a="' + act + '" data-p="' + (r.page + 1) + '" ' + (r.page >= pages ? 'disabled' : '') + '>Next</button></div>'; }
 
 /* ---------- shell ---------- */
-const NAV = { admin: [['dash','Dashboard'],['users','Donors & users'],['verif','Verifications'],['hosp','Hospitals'],['reqs','Blood requests'],['reports','Reports'],['banks','Blood banks'],['camps','Camps'],['centres','Transplant centres'],['organ','Organ pledges'],['broadcast','Broadcast'],['staff','Staff & access'],['settings','Settings'],['audit','Audit log']],
+const NAV = { admin: [['dash','Dashboard'],['users','Donors & users'],['verif','Verifications'],['hosp','Hospitals'],['reqs','Blood requests'],['reports','Reports'],['banks','Blood banks'],['camps','Camps'],['centres','Transplant centres'],['organ','Organ pledges'],['broadcast','Broadcast'],['staff','Staff & access'],['settings','Settings'],['sys','System check'],['audit','Audit log']],
   staff: [['dash','My blood bank'],['camps','Camps']] };
 async function renderShell() {
   const nav = NAV[ME.role];
@@ -185,6 +185,12 @@ PAGES.verif = guard(async () => {
     '<h2 style="margin-top:22px">DigiLocker verified, name or DOB differs from profile (' + mm.total + ')</h2>' +
     (mm.items.length ? '<div class="card" style="padding:0"><table><tbody>' + mm.items.map(u => '<tr class="click" data-a="user" data-id="' + u.id + '"><td class="b">' + esc(u.name) + '</td><td>' + esc(u.phone) + '</td><td>' + vTag(u.verify, u.method) + '</td><td class="right"><span class="btn s">Review</span></td></tr>').join('') + '</tbody></table></div>' : '<div class="card muted">No mismatches.</div>'));
   for (const v of q.items) { try { const r = await api('GET', '/verifications/' + v.id + '/photo', null, true); if (r.ok) $('#ph-' + v.id).src = URL.createObjectURL(await r.blob()); } catch (e) {} }
+});
+
+/* system check */
+PAGES.sys = guard(async () => {
+  main(head('System check') + '<div class="card"><p class="muted">Checks the database, SMS and DigiLocker settings of this server by actually using them. Nothing is sent to users.</p>' +
+    '<div class="acts"><button class="btn p" data-a="syscheck">Run check</button></div><div id="sysout" style="margin-top:14px"></div></div>');
 });
 
 /* hospital applications */
@@ -343,6 +349,20 @@ const ACT = {
   uerase: guard(async d => { if (!await confirmBox('Permanently erase this user and their data? This cannot be undone.', 'Erase')) return; await api('DELETE', '/users/' + d.id); closeModal(); toast('User erased'); go(PAGE); }),
   unotify: guard(async d => { const t = await promptBox('Message title'); if (!t) return; const b = await promptBox('Message text'); if (!b) return; await api('POST', '/users/' + d.id + '/notify', { title: t, body: b }); toast('Sent'); }),
   doc: guard(async d => { const r = await api('GET', '/users/' + d.id + '/doc/' + d.d, null, true); if (!r.ok) throw new Error('File not available'); window.open(URL.createObjectURL(await r.blob()), '_blank'); }),
+  syscheck: guard(async () => {
+    $('#sysout').innerHTML = '<span class="muted">Checking...</span>';
+    const r = await api('GET', '/diagnostics'), ok = v => '<span class="tag ' + (v ? 'ok' : 'red') + '">' + (v ? 'OK' : 'Problem') + '</span> ';
+    const s = r.digilocker.setu;
+    $('#sysout').innerHTML = '<div class="kv">' +
+      '<span>Server time</span><span>' + esc(r.time) + '</span>' +
+      '<span>Mode (NODE_ENV)</span><span>' + esc(r.nodeEnv || '(not set)') + '</span>' +
+      '<span>Public address</span><span>' + ok(r.digilocker.publicBaseIsHttps) + esc(r.publicBaseUrl || '(NOT SET - DigiLocker needs this)') + '</span>' +
+      '<span>Database</span><span>' + ok(r.database === 'mongodb' || r.database === 'file') + esc(r.database) + '</span>' +
+      '<span>SMS login codes</span><span>' + ok(!r.sms.missing && !r.devOtp) + esc(r.sms.provider) + (r.sms.missing ? ' - missing: ' + esc(r.sms.missing) : '') + (r.devOtp ? ' - DEV_OTP is ON (codes shown on screen)' : '') + '</span>' +
+      '<span>DigiLocker</span><span>' + ok(r.digilocker.provider !== 'setu' || (s && s.ok)) + esc(r.digilocker.provider) + (s ? ' (' + esc(s.base) + ')' : '') + '</span>' +
+      (s ? '<span>Setu keys</span><span>client id ' + s.clientIdLength + ' chars · secret ' + s.clientSecretLength + ' chars · product id ' + s.productInstanceLength + ' chars</span><span>Setu answer</span><span>' + esc(s.message) + '</span>' : '') +
+      '<span>Users</span><span>' + r.users + ' (' + r.hospitalsPending + ' hospital applications waiting)</span></div>';
+  }),
   hok: guard(async d => { await api('POST', '/hospitals/' + d.id + '/decision', { approve: true }); toast('Approved - blood bank created'); PAGES.hosp(); refreshBadges(); }),
   hrej: guard(async d => { const r = await promptBox('Reason (shown to the applicant)', 'e.g. Licence number could not be verified'); if (r === null) return; await api('POST', '/hospitals/' + d.id + '/decision', { approve: false, reason: r }); toast('Rejected'); PAGES.hosp(); refreshBadges(); }),
   vok: guard(async d => { await api('POST', '/verifications/' + d.id + '/decision', { decision: 'approve' }); toast('Approved'); PAGES.verif(); refreshBadges(); }),

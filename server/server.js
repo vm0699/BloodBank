@@ -59,7 +59,7 @@ const R = {
 };
 require('./routes_app')(R, { store, core, dl, env, dataDir: DATA_DIR, limiter });
 require('./routes_hospital')(R, { store, core });
-require('./routes_admin')(R, { store, core, env, dataDir: DATA_DIR, limiter });
+require('./routes_admin')(R, { store, core, dl, env, dataDir: DATA_DIR, limiter });
 
 /* ---------- first admin ---------- */
 function bootstrapAdmin() {
