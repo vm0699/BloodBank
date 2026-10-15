@@ -1,15 +1,14 @@
 # Render blueprint for LifeLink (https://render.com). Create a "Blueprint" from this repo, then fill the secrets marked sync:false.
 # Database: MongoDB Atlas - paste its connection string into MONGO_URI.
 #
-# TEST PHASE (now): login codes are shown on screen (DEV_OTP=1), so NODE_ENV must NOT be "production".
-# GO-LIVE: when Twilio is ready, change NODE_ENV to production, delete DEV_OTP, set SMS_PROVIDER=twilio_verify and add
-#          TWILIO_ACCOUNT_SID, TWILIO_AUTH_TOKEN, TWILIO_VERIFY_SID in the Render dashboard (Environment tab).
+# Login codes are sent by Twilio Verify. Enter the three TWILIO_* values in the Render dashboard (Environment tab).
+# NODE_ENV stays "staging" while testing; change it to "production" at launch (the server then also refuses DEV_OTP).
 services:
   - type: web
     name: lifelink-api
     runtime: node
     region: singapore                 # closest Render region to India
-    plan: starter                     # paid: stays awake. "free" sleeps when idle and the first request takes ~1 minute
+    plan: free                        # sleeps after ~15 min idle (first request then takes ~1 minute). Use "starter" (paid) to stay awake
     buildCommand: cd server && npm ci --omit=dev
     startCommand: cd server && node server.js
     healthCheckPath: /api/health
@@ -25,9 +24,11 @@ services:
       - { key: ADMIN_EMAIL, sync: false }
       - { key: ADMIN_PASSWORD, sync: false }
       - { key: SUPPORT_EMAIL, sync: false }
-      # OTP: console + DEV_OTP until Twilio credentials exist
-      - { key: SMS_PROVIDER, value: console }
-      - { key: DEV_OTP, value: "1" }
+      # OTP via Twilio Verify
+      - { key: SMS_PROVIDER, value: twilio_verify }
+      - { key: TWILIO_ACCOUNT_SID, sync: false }
+      - { key: TWILIO_AUTH_TOKEN, sync: false }
+      - { key: TWILIO_VERIFY_SID, sync: false }              # the Verify service id, starts with VA
       # DigiLocker (Setu sandbox)
       - { key: DL_PROVIDER, value: setu }
       - { key: SETU_ENV, value: sandbox }
