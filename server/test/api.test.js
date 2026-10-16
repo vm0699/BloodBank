@@ -12,7 +12,7 @@ process.env.DATA_DIR = dir; process.env.DEV_OTP = '1'; process.env.ADMIN_EMAIL =
 const { server, store } = require('../server');
 
 let base;
-test.before(async () => { await new Promise(r => server.listen(0, r)); base = 'http://localhost:' + server.address().port; process.env.PUBLIC_BASE_URL = base; store.doc('config', {}).verifiedDonorsOnly = true; });
+test.before(async () => { await new Promise(r => server.listen(0, r)); base = 'http://localhost:' + server.address().port; process.env.PUBLIC_BASE_URL = base; store.doc('config', {}).verifiedDonorsOnly = true; store.doc('config', {}).verifiedRequestersOnly = false; });   // this suite predates the requester rule (covered in roles.test.js)
 test.after(() => { server.close(); store.flush(); fs.rmSync(dir, { recursive: true, force: true }); });
 
 async function call(method, p, body, token, raw) {

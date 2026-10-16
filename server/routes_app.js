@@ -35,7 +35,7 @@ module.exports = function register(R, { store, core, dl, env, dataDir, limiter }
   });
   R.add('GET', '/api/config', { auth: 'public' }, () => {
     const c = core.cfg();
-    return { gapMen: c.gapMen, gapWomen: c.gapWomen, minAge: c.minAge, maxAge: c.maxAge, minWeight: c.minWeight, defaultRadiusKm: c.defaultRadiusKm, maintenance: !!c.maintenance, announcement: c.announcement || '', digilockerMock: dl.MOCK, verifyPolicy: c.verifyPolicy, verifyRequireLicence: !!c.verifyRequireLicence, verifyAllowSkip: !!c.verifyAllowSkip, verifiedDonorsOnly: !!c.verifiedDonorsOnly, aadhaarEntry: !!c.aadhaarEntry };
+    return { gapMen: c.gapMen, gapWomen: c.gapWomen, minAge: c.minAge, maxAge: c.maxAge, minWeight: c.minWeight, defaultRadiusKm: c.defaultRadiusKm, maintenance: !!c.maintenance, announcement: c.announcement || '', digilockerMock: dl.MOCK, verifyPolicy: c.verifyPolicy, verifyRequireLicence: !!c.verifyRequireLicence, verifyAllowSkip: !!c.verifyAllowSkip, verifiedDonorsOnly: !!c.verifiedDonorsOnly, verifiedRequestersOnly: !!c.verifiedRequestersOnly, aadhaarEntry: !!c.aadhaarEntry };
   });
 
   /* ---------- auth: phone OTP ---------- */
@@ -100,7 +100,7 @@ module.exports = function register(R, { store, core, dl, env, dataDir, limiter }
       centres: store.list('centres').filter(x => x.active !== false && within(x, 300)).map(x => ({ id: x.id, kind: 'centre', name: x.name, programs: x.programs || [], lat: x.lat, lng: x.lng, phone: x.phone || '', hours: x.hours || '', coordinator: 'Transplant coordinator' })),
       donations: store.filter('donations', d => d.userId === user.id).sort((a, b) => b.t - a.t).slice(0, 100).map(d => ({ id: d.id, t: d.t, place: d.place, type: d.type, units: d.units, forWho: d.forWho })),
       unread: store.filter('notifications', n => n.userId === user.id && !n.read).length,
-      config: { gapMen: c.gapMen, gapWomen: c.gapWomen, minAge: c.minAge, maxAge: c.maxAge, minWeight: c.minWeight, announcement: c.announcement || '', maintenance: !!c.maintenance, verifyPolicy: c.verifyPolicy, verifyRequireLicence: !!c.verifyRequireLicence, verifyAllowSkip: !!c.verifyAllowSkip, verifiedDonorsOnly: !!c.verifiedDonorsOnly, aadhaarEntry: !!c.aadhaarEntry }
+      config: { gapMen: c.gapMen, gapWomen: c.gapWomen, minAge: c.minAge, maxAge: c.maxAge, minWeight: c.minWeight, announcement: c.announcement || '', maintenance: !!c.maintenance, verifyPolicy: c.verifyPolicy, verifyRequireLicence: !!c.verifyRequireLicence, verifyAllowSkip: !!c.verifyAllowSkip, verifiedDonorsOnly: !!c.verifiedDonorsOnly, verifiedRequestersOnly: !!c.verifiedRequestersOnly, aadhaarEntry: !!c.aadhaarEntry }
     };
   });
 
@@ -204,6 +204,9 @@ module.exports = function register(R, { store, core, dl, env, dataDir, limiter }
   /* ---------- blood requests ---------- */
   const mustReq = id => { const r = store.get('requests', id); if (!r) throw new HttpError(404, 'Request not found'); return r; };
   R.add('POST', '/api/requests', { auth: 'user' }, ({ user, body }) => {
+    // asking for blood needs a verified identity too (approved hospital accounts are already vetted by an admin)
+    const vettedHospital = user.role === 'hospital' && user.hospital && user.hospital.status === 'approved';
+    if (core.cfg().verifiedRequestersOnly && !vettedHospital && !core.isVerified(user)) throw new HttpError(403, 'Verify your identity to request blood', { code: 'verify_required', need: core.verifyNeed(user) });
     if (!limiter.take('req:' + user.id, core.cfg().requestsPerHour, 3600e3)) throw new HttpError(429, 'You have raised several requests recently. Please wait before posting another.');
     const phone = A.normPhone(body.phone), bg = oneOf(body.bg, core.BGS), urgency = oneOf(body.urgency, core.URGENCY), units = Math.round(num(body.units, 1, 10) || 0);
     const patient = str(body.patient, 80), hospital = str(body.hospital, 120);

@@ -235,54 +235,60 @@ async function listen(token, bag, ip) {
 }
 const until = async (fn, ms = 3000) => { const t0 = Date.now(); while (Date.now() - t0 < ms) { if (fn()) return true; await new Promise(r => setTimeout(r, 20)); } return false; };
 
-test('live receiver and donor: every step reaches the other person immediately (unverified donor allowed)', async () => {
-  const cfg = store.doc('config', {}); cfg.verifiedDonorsOnly = false;
+test('verification is needed to request AND to donate; then receiver and donor are notified of every step instantly', async () => {
+  const aad = require('../lib/aadhaar'), cfg = store.doc('config', {});
+  assert.equal(cfg.verifiedDonorsOnly, true); assert.equal(cfg.verifiedRequestersOnly, true);           // on by default
   const receiver = crowdUser('A+', { donor: false, available: false, presence: null, verify: { status: 'none' } });
-  const donor = crowdUser('O+', { verify: { status: 'none' } });               // registered donor, not ID-verified
+  const donor = crowdUser('O+', { verify: { status: 'none' } });
+  const body = { patient: 'Live Patient', bg: 'A+', units: 1, urgency: 'critical', hospital: 'Concurrent General', phone: '9811100123' };
+
+  // not verified: cannot request, cannot donate
+  const noReq = await call('POST', '/api/requests', body, receiver.token);
+  assert.equal(noReq.status, 403); assert.equal(noReq.code, 'verify_required');
+  const other = crowdUser('B+', { donor: false, available: false });
+  const someReq = await call('POST', '/api/requests', { patient: 'Other', bg: 'O+', units: 1, urgency: 'urgent', hospital: 'Concurrent General', phone: '9811100133' }, other.token);
+  assert.equal((await call('POST', '/api/requests/' + someReq.request.id + '/offer', { accepted: true }, donor.token)).code, 'verify_required');
+
+  // both verify with an Aadhaar number (the in-app flow), then everything works
+  assert.equal((await call('POST', '/api/verify/aadhaar', { number: aad.withCheck('39876543211') }, receiver.token)).status, 200);
+  assert.equal((await call('POST', '/api/verify/aadhaar', { number: aad.withCheck('49876543211') }, donor.token)).status, 200);
+
   const gotR = [], gotD = [];
   const acR = await listen(receiver.token, gotR, '10.50.0.1'), acD = await listen(donor.token, gotD, '10.50.0.2');
   assert.ok(await until(() => gotR.includes('hello') && gotD.includes('hello')));
 
-  // 1. receiver raises a request -> the (unverified) donor nearby is alerted at once
-  const rq = await call('POST', '/api/requests', { patient: 'Live Patient', bg: 'A+', units: 1, urgency: 'critical', hospital: 'Concurrent General', phone: '9811100123' }, receiver.token);
+  const rq = await call('POST', '/api/requests', body, receiver.token);                      // 1. request -> donor alerted at once
   assert.equal(rq.status, 200); assert.ok(rq.alerted >= 1);
   assert.ok(await until(() => gotD.includes('notice')), 'donor notified of the new request');
-  const rid = rq.request.id;
-  const mineBefore = gotR.filter(e => e === 'notice').length;
+  const rid = rq.request.id, mineBefore = gotR.filter(e => e === 'notice').length;
 
-  // 2. donor accepts the instructions and offers -> the receiver is notified and sees the donor
-  const off = await call('POST', '/api/requests/' + rid + '/offer', { accepted: true }, donor.token);
-  assert.equal(off.status, 200);
+  assert.equal((await call('POST', '/api/requests/' + rid + '/offer', { accepted: true }, donor.token)).status, 200);   // 2. offer -> receiver notified
   assert.ok(await until(() => gotR.filter(e => e === 'notice').length > mineBefore), 'receiver notified of the offer');
   const view1 = await call('GET', '/api/requests/' + rid, null, receiver.token);
   assert.equal(view1.request.responders, 1);
   const resp = view1.request.responses.find(x => x.donorId === donor.id);
-  assert.ok(resp);
-  assert.equal(resp.verified, false); assert.equal(resp.phone, undefined);        // not verified, phone still private
+  assert.equal(resp.verified, true); assert.equal(resp.phone, undefined);
 
-  // 3. receiver accepts -> donor is notified and the contact unlocks
-  const donorNoticesBefore = gotD.filter(e => e === 'notice').length;
+  const dBefore = gotD.filter(e => e === 'notice').length;                                    // 3. accept -> donor notified, contact unlocked
   assert.equal((await call('PATCH', '/api/requests/' + rid + '/responses/' + resp.id, { state: 'accepted' }, receiver.token)).status, 200);
-  assert.ok(await until(() => gotD.filter(e => e === 'notice').length > donorNoticesBefore), 'donor notified of acceptance');
-  const dView = await call('GET', '/api/requests/' + rid, null, donor.token);
-  assert.ok(dView.request.contact, 'donor can now see the requester contact');
+  assert.ok(await until(() => gotD.filter(e => e === 'notice').length > dBefore), 'donor notified of acceptance');
+  assert.ok((await call('GET', '/api/requests/' + rid, null, donor.token)).request.contact);
 
-  // 4. donor finishes -> receiver is notified, request is fulfilled
-  const recvBefore = gotR.filter(e => e === 'notice').length;
+  const rBefore = gotR.filter(e => e === 'notice').length;                                    // 4. donated -> receiver notified, fulfilled
   assert.equal((await call('POST', '/api/requests/' + rid + '/donated', {}, donor.token)).status, 200);
-  assert.ok(await until(() => gotR.filter(e => e === 'notice').length > recvBefore), 'receiver notified of the donation');
+  assert.ok(await until(() => gotR.filter(e => e === 'notice').length > rBefore), 'receiver notified of the donation');
   const done = await call('GET', '/api/requests/' + rid, null, receiver.token);
   assert.equal(done.request.status, 'fulfilled'); assert.equal(done.request.received, 1);
-  const inbox = await call('GET', '/api/notifications', null, receiver.token);
-  assert.ok(inbox.items.some(n => n.type === 'donation_received'));
+  assert.ok((await call('GET', '/api/notifications', null, receiver.token)).items.some(n => n.type === 'donation_received'));
   acR.abort(); acD.abort();
 
-  // the switch: with "verified donors only" ON an unverified donor is refused
-  cfg.verifiedDonorsOnly = true;
-  const rq2 = await call('POST', '/api/requests', { patient: 'Second Patient', bg: 'A+', units: 1, urgency: 'urgent', hospital: 'Concurrent General', phone: '9811100124' }, receiver.token);
-  const blocked = await call('POST', '/api/requests/' + rq2.request.id + '/offer', { accepted: true }, donor.token);
-  assert.equal(blocked.status, 403); assert.equal(blocked.code, 'verify_required');
-  cfg.verifiedDonorsOnly = false;
+  // the admin switches: with both rules off, unverified people may request and donate
+  cfg.verifiedRequestersOnly = false; cfg.verifiedDonorsOnly = false;
+  const r2 = crowdUser('A+', { donor: false, available: false, presence: null, verify: { status: 'none' } }), d2 = crowdUser('O+', { verify: { status: 'none' } });
+  const q2 = await call('POST', '/api/requests', Object.assign({}, body, { patient: 'Second Patient', phone: '9811100124' }), r2.token);
+  assert.equal(q2.status, 200);
+  assert.equal((await call('POST', '/api/requests/' + q2.request.id + '/offer', { accepted: true }, d2.token)).status, 200);
+  cfg.verifiedRequestersOnly = true; cfg.verifiedDonorsOnly = true;
 });
 
 test('sample data: Tamil Nadu hospitals, Tamil donor names, camps and requests load once and delete cleanly', async () => {

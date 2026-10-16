@@ -23,7 +23,7 @@ const CONFIG_DEFAULTS = {
   // Who counts as "verified": 'digilocker' = DigiLocker (or an admin override) with the Aadhaar card shared (always required);
   // verifyRequireLicence also demands a driving licence (default: optional). 'any' = any approved method.
   // verifyAllowSkip: onboarding offers "I only need to request blood" (they still cannot donate until verified).
-  verifyPolicy: 'digilocker', verifyRequireLicence: false, verifyAllowSkip: true, verifiedDonorsOnly: false, aadhaarEntry: true
+  verifyPolicy: 'digilocker', verifyRequireLicence: false, verifyAllowSkip: true, verifiedDonorsOnly: true, verifiedRequestersOnly: true, aadhaarEntry: true
 };
 
 function create(store, dataDir) {
@@ -277,6 +277,9 @@ function create(store, dataDir) {
   // One-time upgrade for accounts created before account types existed: people who were already donors stay donors.
   function migrate() {
     let n = 0;
+    // One time: from now on both people who request blood and people who donate must be verified (admins can switch either off).
+    const conf = store.doc('config', {});
+    if (!conf.rulesV2) { conf.rulesV2 = true; conf.verifiedDonorsOnly = true; conf.verifiedRequestersOnly = true; n++; }
     users().forEach(u => {
       if (u.role === undefined) { u.role = 'user'; n++; }
       if (u.donor === undefined) { u.donor = !!(u.available || (u.verify && u.verify.status === 'verified' && u.bg)); n++; }
