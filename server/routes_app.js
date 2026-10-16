@@ -35,7 +35,7 @@ module.exports = function register(R, { store, core, dl, env, dataDir, limiter }
   });
   R.add('GET', '/api/config', { auth: 'public' }, () => {
     const c = core.cfg();
-    return { gapMen: c.gapMen, gapWomen: c.gapWomen, minAge: c.minAge, maxAge: c.maxAge, minWeight: c.minWeight, defaultRadiusKm: c.defaultRadiusKm, maintenance: !!c.maintenance, announcement: c.announcement || '', digilockerMock: dl.MOCK, verifyPolicy: c.verifyPolicy, verifyRequireLicence: !!c.verifyRequireLicence, verifyAllowSkip: !!c.verifyAllowSkip, verifiedDonorsOnly: !!c.verifiedDonorsOnly };
+    return { gapMen: c.gapMen, gapWomen: c.gapWomen, minAge: c.minAge, maxAge: c.maxAge, minWeight: c.minWeight, defaultRadiusKm: c.defaultRadiusKm, maintenance: !!c.maintenance, announcement: c.announcement || '', digilockerMock: dl.MOCK, verifyPolicy: c.verifyPolicy, verifyRequireLicence: !!c.verifyRequireLicence, verifyAllowSkip: !!c.verifyAllowSkip, verifiedDonorsOnly: !!c.verifiedDonorsOnly, aadhaarEntry: !!c.aadhaarEntry };
   });
 
   /* ---------- auth: phone OTP ---------- */
@@ -100,7 +100,7 @@ module.exports = function register(R, { store, core, dl, env, dataDir, limiter }
       centres: store.list('centres').filter(x => x.active !== false && within(x, 300)).map(x => ({ id: x.id, kind: 'centre', name: x.name, programs: x.programs || [], lat: x.lat, lng: x.lng, phone: x.phone || '', hours: x.hours || '', coordinator: 'Transplant coordinator' })),
       donations: store.filter('donations', d => d.userId === user.id).sort((a, b) => b.t - a.t).slice(0, 100).map(d => ({ id: d.id, t: d.t, place: d.place, type: d.type, units: d.units, forWho: d.forWho })),
       unread: store.filter('notifications', n => n.userId === user.id && !n.read).length,
-      config: { gapMen: c.gapMen, gapWomen: c.gapWomen, minAge: c.minAge, maxAge: c.maxAge, minWeight: c.minWeight, announcement: c.announcement || '', maintenance: !!c.maintenance, verifyPolicy: c.verifyPolicy, verifyRequireLicence: !!c.verifyRequireLicence, verifyAllowSkip: !!c.verifyAllowSkip, verifiedDonorsOnly: !!c.verifiedDonorsOnly }
+      config: { gapMen: c.gapMen, gapWomen: c.gapWomen, minAge: c.minAge, maxAge: c.maxAge, minWeight: c.minWeight, announcement: c.announcement || '', maintenance: !!c.maintenance, verifyPolicy: c.verifyPolicy, verifyRequireLicence: !!c.verifyRequireLicence, verifyAllowSkip: !!c.verifyAllowSkip, verifiedDonorsOnly: !!c.verifiedDonorsOnly, aadhaarEntry: !!c.aadhaarEntry }
     };
   });
 
@@ -342,6 +342,22 @@ module.exports = function register(R, { store, core, dl, env, dataDir, limiter }
     store.insert('verifications', { ref, userId: user.id, idType, idNumber: num_, name, status: 'pending', created: Date.now() });
     user.verify = { status: 'pending', method: 'direct', ref, idType, last4: num_.slice(-4), at: Date.now() }; store.save();
     return { ref, status: 'pending', me: core.userView(user) };
+  });
+  // TEMPORARY verification (Admin > Settings > "Verify by Aadhaar number"): the person types their Aadhaar number, we check its format
+  // and keep only the last 4 digits plus a one-way fingerprint (so one number cannot verify two accounts). The number is NOT checked
+  // with UIDAI or DigiLocker, so this is a stand-in until DigiLocker is live.
+  R.add('POST', '/api/verify/aadhaar', { auth: 'user' }, ({ user, body }) => {
+    if (!core.cfg().aadhaarEntry) throw new HttpError(403, 'Aadhaar number verification is switched off');
+    if (!limiter.take('aadhaar:' + user.id, 8, 3600e3)) throw new HttpError(429, 'Too many attempts. Please try again later.');
+    const n = String(body.number || '').replace(/[\s-]/g, '');
+    if (!require('./lib/aadhaar').valid(n)) throw bad('Enter a valid 12-digit Aadhaar number');
+    const hash = A.sha('aadhaar:' + n + ':' + A.secret(dataDir));
+    if (store.find('users', u => u.id !== user.id && u.aadhaarHash === hash)) throw new HttpError(409, 'This Aadhaar number is already linked to another account');
+    user.aadhaarHash = hash;
+    user.verify = { status: 'verified', method: 'aadhaar', idType: 'aadhaar', last4: n.slice(-4), at: Date.now(), by: 'self', note: 'Aadhaar number entered in the app (not checked with DigiLocker)' };
+    store.save();
+    core.notify(user.id, 'verified', {}, {});
+    return { ok: true, me: core.userView(user) };
   });
   R.add('GET', '/api/verify/status', { auth: 'user' }, ({ user }) => ({ status: (user.verify || {}).status || 'none', reason: (user.verify || {}).reason || '', me: core.userView(user) }));
 };

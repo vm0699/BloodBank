@@ -300,3 +300,20 @@ test('sample data: Tamil Nadu hospitals, Tamil donor names, camps and requests l
   assert.ok(del.banks >= 10 && del.requests >= 4);
   assert.equal(store.filter('banks', b => b.demo).length, 0);
 });
+
+test('temporary Aadhaar-number verification: format-checked, last 4 only, one number per account, switchable', async () => {
+  const aad = require('../lib/aadhaar');
+  const u1 = crowdUser('O+', { verify: { status: 'none' }, available: false }), u2 = crowdUser('B+', { verify: { status: 'none' }, available: false });
+  const num = aad.withCheck('29876543210');
+  assert.equal((await call('POST', '/api/verify/aadhaar', { number: '1234 5678 9012' }, u1.token)).status, 400);          // starts with 1
+  assert.equal((await call('POST', '/api/verify/aadhaar', { number: num.slice(0, 11) + ((+num[11] + 1) % 10) }, u1.token)).status, 400);   // bad check digit
+  const ok = await call('POST', '/api/verify/aadhaar', { number: num.replace(/(\d{4})(\d{4})(\d{4})/, '$1 $2 $3') }, u1.token);
+  assert.equal(ok.status, 200); assert.equal(ok.me.verified, true); assert.equal(ok.me.verify.last4, num.slice(-4));
+  const raw = JSON.stringify(store.get('users', u1.id));
+  assert.ok(!raw.includes(num), 'the full number is never stored');
+  assert.ok(!JSON.stringify(ok).includes(store.get('users', u1.id).aadhaarHash), 'the fingerprint is never sent to the app');
+  assert.equal((await call('POST', '/api/verify/aadhaar', { number: num }, u2.token)).status, 409);                       // one number, one account
+  store.doc('config', {}).aadhaarEntry = false;
+  assert.equal((await call('POST', '/api/verify/aadhaar', { number: aad.withCheck('39876543210') }, u2.token)).status, 403);  // switched off
+  store.doc('config', {}).aadhaarEntry = true;
+});

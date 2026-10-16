@@ -9,6 +9,7 @@ Read next: [BACKEND.md](BACKEND.md) (run, configure, deploy, backups) · [DIGILO
 | Area | Status |
 |---|---|
 | **Sample data (Tamil Nadu):** one click in Admin → Settings loads 16 real hospitals/blood banks (Chennai, Kattankulathur/SRM, Chengalpattu, Madurai, Coimbatore, Tiruchirappalli, Salem), 5 transplant centres, 6 camps, 40 donors with Tamil names (shown in Tamil script to Tamil users) and 6 open requests; one click removes it all | ✅ |
+| **Temporary Aadhaar-number verification** (Admin -> Settings, currently **on**): the verify button asks for the Aadhaar number, format-checks it (12 digits + check digit), keeps only the last 4 digits plus a one-way fingerprint (one number = one account) and marks the person verified. DigiLocker/Setu is **not called**. It does not check the number with UIDAI - switch it off when DigiLocker is live | OK |
 | **Verified-donors-only switch** (Admin → Settings, currently **off**): any registered donor can be listed, alerted and donate; the "ID verified" badge still marks who is verified | ✅ |
 | **Live receiver ↔ donor loop:** alert, offer, accept, contact unlock and donation each notify the other person instantly and update their open screens (tested with both users on live streams) | ✅ |
 | **Directions:** Google Maps is given the hospital's name and address (near the saved point), and hospitals that register in the app are located from their address | ✅ |

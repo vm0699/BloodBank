@@ -1,7 +1,7 @@
 // Service worker for the app shell (same-origin only: map tiles and API calls always go to the network).
 // HTML/JS is network-first, so an update reaches people as soon as they are online; the cached copy is the offline fallback.
 // Bump CACHE_NAME on every release.
-const CACHE_NAME = 'lifelink-cache-v6';
+const CACHE_NAME = 'lifelink-cache-v7';
 const ASSETS = [
   './',
   './index.html',

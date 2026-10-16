@@ -23,7 +23,7 @@ const CONFIG_DEFAULTS = {
   // Who counts as "verified": 'digilocker' = DigiLocker (or an admin override) with the Aadhaar card shared (always required);
   // verifyRequireLicence also demands a driving licence (default: optional). 'any' = any approved method.
   // verifyAllowSkip: onboarding offers "I only need to request blood" (they still cannot donate until verified).
-  verifyPolicy: 'digilocker', verifyRequireLicence: false, verifyAllowSkip: true, verifiedDonorsOnly: false
+  verifyPolicy: 'digilocker', verifyRequireLicence: false, verifyAllowSkip: true, verifiedDonorsOnly: false, aadhaarEntry: true
 };
 
 function create(store, dataDir) {
