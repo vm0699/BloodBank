@@ -1,6 +1,6 @@
 // Real-time donor map + richer profile:  node --test test/live.test.js
 'use strict';
-process.env.LIFELINK_NO_ENV = '1';
+process.env.LIFELINK_NO_ENV = '1'; process.env.LIFELINK_NO_GEOCODE = '1';
 const test = require('node:test');
 const assert = require('node:assert/strict');
 const fs = require('fs');

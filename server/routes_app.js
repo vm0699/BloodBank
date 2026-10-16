@@ -35,7 +35,7 @@ module.exports = function register(R, { store, core, dl, env, dataDir, limiter }
   });
   R.add('GET', '/api/config', { auth: 'public' }, () => {
     const c = core.cfg();
-    return { gapMen: c.gapMen, gapWomen: c.gapWomen, minAge: c.minAge, maxAge: c.maxAge, minWeight: c.minWeight, defaultRadiusKm: c.defaultRadiusKm, maintenance: !!c.maintenance, announcement: c.announcement || '', digilockerMock: dl.MOCK, verifyPolicy: c.verifyPolicy, verifyRequireLicence: !!c.verifyRequireLicence, verifyAllowSkip: !!c.verifyAllowSkip };
+    return { gapMen: c.gapMen, gapWomen: c.gapWomen, minAge: c.minAge, maxAge: c.maxAge, minWeight: c.minWeight, defaultRadiusKm: c.defaultRadiusKm, maintenance: !!c.maintenance, announcement: c.announcement || '', digilockerMock: dl.MOCK, verifyPolicy: c.verifyPolicy, verifyRequireLicence: !!c.verifyRequireLicence, verifyAllowSkip: !!c.verifyAllowSkip, verifiedDonorsOnly: !!c.verifiedDonorsOnly };
   });
 
   /* ---------- auth: phone OTP ---------- */
@@ -87,7 +87,7 @@ module.exports = function register(R, { store, core, dl, env, dataDir, limiter }
     const within = (o, km) => hav(lat, lng, o.lat, o.lng) <= km;
     const fresh = Date.now() - c.presenceFreshMin * 60e3;
     const donors = store.list('users').filter(u => u.id !== user.id && core.donorListed(u, c) && (u.demo || u.presence.seen >= fresh))
-      .map(u => core.publicDonor(u)).filter(d => within(d, radius * 1.6)).sort((a, b) => hav(lat, lng, a.lat, a.lng) - hav(lat, lng, b.lat, b.lng)).slice(0, 80);
+      .map(u => core.publicDonor(u, user.lang)).filter(d => within(d, radius * 1.6)).sort((a, b) => hav(lat, lng, a.lat, a.lng) - hav(lat, lng, b.lat, b.lng)).slice(0, 80);
     const feed = store.list('requests').filter(r => r.status === 'open' && r.userId !== user.id && within(r, Math.max(radius * 2, 30)))
       .map(r => core.reqView(r, user)).sort((a, b) => b.created - a.created).slice(0, 60);
     const mine = store.list('requests').filter(r => r.userId === user.id && Date.now() - r.created < 60 * 86400e3).map(r => core.reqView(r, user)).sort((a, b) => b.created - a.created);
@@ -100,7 +100,7 @@ module.exports = function register(R, { store, core, dl, env, dataDir, limiter }
       centres: store.list('centres').filter(x => x.active !== false && within(x, 300)).map(x => ({ id: x.id, kind: 'centre', name: x.name, programs: x.programs || [], lat: x.lat, lng: x.lng, phone: x.phone || '', hours: x.hours || '', coordinator: 'Transplant coordinator' })),
       donations: store.filter('donations', d => d.userId === user.id).sort((a, b) => b.t - a.t).slice(0, 100).map(d => ({ id: d.id, t: d.t, place: d.place, type: d.type, units: d.units, forWho: d.forWho })),
       unread: store.filter('notifications', n => n.userId === user.id && !n.read).length,
-      config: { gapMen: c.gapMen, gapWomen: c.gapWomen, minAge: c.minAge, maxAge: c.maxAge, minWeight: c.minWeight, announcement: c.announcement || '', maintenance: !!c.maintenance, verifyPolicy: c.verifyPolicy, verifyRequireLicence: !!c.verifyRequireLicence, verifyAllowSkip: !!c.verifyAllowSkip }
+      config: { gapMen: c.gapMen, gapWomen: c.gapWomen, minAge: c.minAge, maxAge: c.maxAge, minWeight: c.minWeight, announcement: c.announcement || '', maintenance: !!c.maintenance, verifyPolicy: c.verifyPolicy, verifyRequireLicence: !!c.verifyRequireLicence, verifyAllowSkip: !!c.verifyAllowSkip, verifiedDonorsOnly: !!c.verifiedDonorsOnly }
     };
   });
 
@@ -237,7 +237,7 @@ module.exports = function register(R, { store, core, dl, env, dataDir, limiter }
     if (r.status !== 'open') throw bad('This request is no longer open');
     if (r.userId === user.id) throw bad('You cannot offer on your own request');
     if (user.donor !== true || (user.role || 'user') !== 'user') throw new HttpError(403, 'Become a donor to offer your help', { code: 'donor_required' });
-    if (!core.isVerified(user)) throw new HttpError(403, 'Verify your ID to donate', { code: 'verify_required', need: core.verifyNeed(user) });
+    if (!core.donorOk(user)) throw new HttpError(403, 'Verify your ID to donate', { code: 'verify_required', need: core.verifyNeed(user) });
     if (!user.bg || !core.canGive(user.bg, r.bg)) throw bad('Your blood group is not compatible with this request');
     const e = core.eligibility(user); if (!e.ok) throw bad('You are not eligible to donate right now');
     if (!body || body.accepted !== true) throw new HttpError(400, 'Please read and accept the donation instructions first', { code: 'instructions_required' });
@@ -252,7 +252,7 @@ module.exports = function register(R, { store, core, dl, env, dataDir, limiter }
   });
   R.add('DELETE', '/api/requests/:id/offer', { auth: 'user' }, ({ user, params }) => {
     const r = mustReq(params.id), x = r.responses.find(y => y.donorId === user.id);
-    if (x && x.state !== 'confirmed') { x.state = 'withdrawn'; store.save(); }
+    if (x && x.state !== 'confirmed') { x.state = 'withdrawn'; store.save(); live.emitUser(r.userId, 'notice', { request: r.id }); }
     return { request: core.reqView(r, user) };
   });
   R.add('POST', '/api/requests/:id/donated', { auth: 'user' }, ({ user, params }) => {

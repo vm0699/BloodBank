@@ -1,6 +1,6 @@
 // Account types (user / donor / hospital) and multi-user concurrency:  node --test test/roles.test.js
 'use strict';
-process.env.LIFELINK_NO_ENV = '1';
+process.env.LIFELINK_NO_ENV = '1'; process.env.LIFELINK_NO_GEOCODE = '1';
 const test = require('node:test');
 const assert = require('node:assert/strict');
 const fs = require('fs');
@@ -224,4 +224,79 @@ test('product rules: 18+ only, donation instructions must be accepted, bank stoc
   assert.ok(bank); assert.equal(bank.stock, null); assert.equal(bank.name, 'Concurrent General');
   const asHosp = await call('GET', '/api/sync?lat=13.08&lng=80.27&radius=10', null, hosp.token);
   assert.equal(typeof asHosp.banks.find(b => b.id === hosp.bankId).stock['O-'], 'number');
+});
+
+// --- receiver <-> donor, both connected live; the donor is NOT ID-verified (verified-only is off) ---
+async function listen(token, bag, ip) {
+  const ac = new AbortController();
+  const r = await fetch(base + '/api/live?lat=' + LAT + '&lng=' + LNG, { headers: { Authorization: 'Bearer ' + token, 'X-Forwarded-For': ip }, signal: ac.signal });
+  (async () => { const dec = new TextDecoder(); try { for await (const c of r.body) { const t = dec.decode(c); (t.match(/event: (\w+)/g) || []).forEach(m => bag.push(m.slice(7))); } } catch (e) { /* aborted */ } })();
+  return ac;
+}
+const until = async (fn, ms = 3000) => { const t0 = Date.now(); while (Date.now() - t0 < ms) { if (fn()) return true; await new Promise(r => setTimeout(r, 20)); } return false; };
+
+test('live receiver and donor: every step reaches the other person immediately (unverified donor allowed)', async () => {
+  const cfg = store.doc('config', {}); cfg.verifiedDonorsOnly = false;
+  const receiver = crowdUser('A+', { donor: false, available: false, presence: null, verify: { status: 'none' } });
+  const donor = crowdUser('O+', { verify: { status: 'none' } });               // registered donor, not ID-verified
+  const gotR = [], gotD = [];
+  const acR = await listen(receiver.token, gotR, '10.50.0.1'), acD = await listen(donor.token, gotD, '10.50.0.2');
+  assert.ok(await until(() => gotR.includes('hello') && gotD.includes('hello')));
+
+  // 1. receiver raises a request -> the (unverified) donor nearby is alerted at once
+  const rq = await call('POST', '/api/requests', { patient: 'Live Patient', bg: 'A+', units: 1, urgency: 'critical', hospital: 'Concurrent General', phone: '9811100123' }, receiver.token);
+  assert.equal(rq.status, 200); assert.ok(rq.alerted >= 1);
+  assert.ok(await until(() => gotD.includes('notice')), 'donor notified of the new request');
+  const rid = rq.request.id;
+  const mineBefore = gotR.filter(e => e === 'notice').length;
+
+  // 2. donor accepts the instructions and offers -> the receiver is notified and sees the donor
+  const off = await call('POST', '/api/requests/' + rid + '/offer', { accepted: true }, donor.token);
+  assert.equal(off.status, 200);
+  assert.ok(await until(() => gotR.filter(e => e === 'notice').length > mineBefore), 'receiver notified of the offer');
+  const view1 = await call('GET', '/api/requests/' + rid, null, receiver.token);
+  assert.equal(view1.request.responders, 1);
+  const resp = view1.request.responses.find(x => x.donorId === donor.id);
+  assert.ok(resp);
+  assert.equal(resp.verified, false); assert.equal(resp.phone, undefined);        // not verified, phone still private
+
+  // 3. receiver accepts -> donor is notified and the contact unlocks
+  const donorNoticesBefore = gotD.filter(e => e === 'notice').length;
+  assert.equal((await call('PATCH', '/api/requests/' + rid + '/responses/' + resp.id, { state: 'accepted' }, receiver.token)).status, 200);
+  assert.ok(await until(() => gotD.filter(e => e === 'notice').length > donorNoticesBefore), 'donor notified of acceptance');
+  const dView = await call('GET', '/api/requests/' + rid, null, donor.token);
+  assert.ok(dView.request.contact, 'donor can now see the requester contact');
+
+  // 4. donor finishes -> receiver is notified, request is fulfilled
+  const recvBefore = gotR.filter(e => e === 'notice').length;
+  assert.equal((await call('POST', '/api/requests/' + rid + '/donated', {}, donor.token)).status, 200);
+  assert.ok(await until(() => gotR.filter(e => e === 'notice').length > recvBefore), 'receiver notified of the donation');
+  const done = await call('GET', '/api/requests/' + rid, null, receiver.token);
+  assert.equal(done.request.status, 'fulfilled'); assert.equal(done.request.received, 1);
+  const inbox = await call('GET', '/api/notifications', null, receiver.token);
+  assert.ok(inbox.items.some(n => n.type === 'donation_received'));
+  acR.abort(); acD.abort();
+
+  // the switch: with "verified donors only" ON an unverified donor is refused
+  cfg.verifiedDonorsOnly = true;
+  const rq2 = await call('POST', '/api/requests', { patient: 'Second Patient', bg: 'A+', units: 1, urgency: 'urgent', hospital: 'Concurrent General', phone: '9811100124' }, receiver.token);
+  const blocked = await call('POST', '/api/requests/' + rq2.request.id + '/offer', { accepted: true }, donor.token);
+  assert.equal(blocked.status, 403); assert.equal(blocked.code, 'verify_required');
+  cfg.verifiedDonorsOnly = false;
+});
+
+test('sample data: Tamil Nadu hospitals, Tamil donor names, camps and requests load once and delete cleanly', async () => {
+  const adm = await admin();
+  const r = await call('POST', '/api/admin/demo', {}, adm);
+  assert.equal(r.status, 200); assert.ok(r.banks >= 10 && r.donors >= 30 && r.camps >= 4 && r.requests >= 4);
+  assert.equal((await call('POST', '/api/admin/demo', {}, adm)).status, 409);
+  // a Tamil-language viewer sees donors by their Tamil names
+  const viewer = crowdUser('B+', { donor: false, available: false, presence: null, lang: 'ta' });
+  const sync = await call('GET', '/api/sync?lat=13.0827&lng=80.2707&radius=25', null, viewer.token);
+  assert.ok(sync.donors.length > 0);
+  assert.ok(sync.donors.some(d => /[஀-௿]/.test(d.name)), 'Tamil script names for a Tamil viewer');
+  assert.ok(sync.feed.length > 0 && sync.camps.length > 0);
+  const del = await call('DELETE', '/api/admin/demo', null, adm);
+  assert.ok(del.banks >= 10 && del.requests >= 4);
+  assert.equal(store.filter('banks', b => b.demo).length, 0);
 });

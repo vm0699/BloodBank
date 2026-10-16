@@ -23,7 +23,7 @@ const CONFIG_DEFAULTS = {
   // Who counts as "verified": 'digilocker' = DigiLocker (or an admin override) with the Aadhaar card shared (always required);
   // verifyRequireLicence also demands a driving licence (default: optional). 'any' = any approved method.
   // verifyAllowSkip: onboarding offers "I only need to request blood" (they still cannot donate until verified).
-  verifyPolicy: 'digilocker', verifyRequireLicence: false, verifyAllowSkip: true
+  verifyPolicy: 'digilocker', verifyRequireLicence: false, verifyAllowSkip: true, verifiedDonorsOnly: false
 };
 
 function create(store, dataDir) {
@@ -133,7 +133,9 @@ function create(store, dataDir) {
   /* ---------- views ---------- */
   const donorPos = u => u.presence ? jitter(u.presence.lat, u.presence.lng, u.id, 300) : null;
   // Only people who chose "become a donor" (and are not a hospital account) ever appear on the map or get alerts.
-  const donorListed = (u, c) => !!(u.status !== 'suspended' && u.donor === true && (u.role || 'user') === 'user' && u.available && isVerified(u) && eligibility(u).ok && u.presence && u.bg);
+  // With "verified donors only" off (the current setting) any registered donor can be listed and can donate; the "ID verified" badge still shows who is verified.
+  const donorOk = (u, c) => !(c || cfg()).verifiedDonorsOnly || isVerified(u);
+  const donorListed = (u, c) => !!(u.status !== 'suspended' && u.donor === true && (u.role || 'user') === 'user' && u.available && donorOk(u, c) && eligibility(u).ok && u.presence && u.bg);
   // Donor registration certificate: stable number derived from the account, issued when the person becomes a donor.
   const certOf = u => {
     if (u.donor !== true) return null;
@@ -145,9 +147,9 @@ function create(store, dataDir) {
     lat: u.hospital.lat, lng: u.hospital.lng, phone: u.hospital.phone, hours: u.hospital.hours || '', components: u.hospital.components || ['Whole blood'],
     status: u.hospital.status, reason: u.hospital.reason || '', bankId: u.hospital.bankId || '' } : null;
 
-  function publicDonor(u) {
+  function publicDonor(u, lang) {
     const [lat, lng] = donorPos(u);
-    return { id: u.id, name: shortName(u.name), bg: u.bg, lat, lng, verified: true, seen: u.presence ? u.presence.seen : 0, prefs: u.prefs || [], night: !!u.night,
+    return { id: u.id, name: shortName(lang === 'ta' && u.nameTa ? u.nameTa : u.name), bg: u.bg, lat, lng, verified: isVerified(u), seen: u.presence ? u.presence.seen : 0, prefs: u.prefs || [], night: !!u.night,
       donated: (u.donatedBefore || 0) + store.filter('donations', d => d.userId === u.id).length };
   }
 
@@ -283,7 +285,7 @@ function create(store, dataDir) {
     return n;
   }
 
-  return { migrate, BGS, COMPAT, canGive, COMPONENTS, URGENCY, cfg, CONFIG_DEFAULTS, shortName, isVerified, verifyNeed, docLocked, hasDoc, ageOf, dayKey, eligibility, notify, donorListed, publicDonor, userView, reqView, offerState,
+  return { migrate, donorOk, BGS, COMPAT, canGive, COMPONENTS, URGENCY, cfg, CONFIG_DEFAULTS, shortName, isVerified, verifyNeed, docLocked, hasDoc, ageOf, dayKey, eligibility, notify, donorListed, publicDonor, userView, reqView, offerState,
     alertDonors, confirmDonation, jobs, eraseUser, donorPos, HEALTH };
 }
 module.exports = { create, BGS, COMPAT, canGive, COMPONENTS, URGENCY, CONFIG_DEFAULTS };

@@ -1,6 +1,6 @@
 // End-to-end API tests:  node --test test/        (starts the server on a random port with a temp data dir)
 'use strict';
-process.env.LIFELINK_NO_ENV = '1';
+process.env.LIFELINK_NO_ENV = '1'; process.env.LIFELINK_NO_GEOCODE = '1';
 const test = require('node:test');
 const assert = require('node:assert/strict');
 const fs = require('fs');
@@ -12,7 +12,7 @@ process.env.DATA_DIR = dir; process.env.DEV_OTP = '1'; process.env.ADMIN_EMAIL =
 const { server, store } = require('../server');
 
 let base;
-test.before(async () => { await new Promise(r => server.listen(0, r)); base = 'http://localhost:' + server.address().port; process.env.PUBLIC_BASE_URL = base; });
+test.before(async () => { await new Promise(r => server.listen(0, r)); base = 'http://localhost:' + server.address().port; process.env.PUBLIC_BASE_URL = base; store.doc('config', {}).verifiedDonorsOnly = true; });
 test.after(() => { server.close(); store.flush(); fs.rmSync(dir, { recursive: true, force: true }); });
 
 async function call(method, p, body, token, raw) {

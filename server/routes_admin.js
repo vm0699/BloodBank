@@ -368,7 +368,13 @@ module.exports = function register(R, { store, core, dl, env, dataDir, limiter }
   R.add('DELETE', '/api/admin/demo', only, ({ admin }) => {
     const ids = store.list('users').filter(u => u.demo).map(u => u.id);
     ids.forEach(id => core.eraseUser(id));
-    const n = [store.removeWhere('banks', b => b.demo), store.removeWhere('camps', c => c.demo), store.removeWhere('centres', c => c.demo)];
-    audit(admin, 'demo.purge'); return { users: ids.length, banks: n[0], camps: n[1], centres: n[2] };
+    const n = [store.removeWhere('banks', b => b.demo), store.removeWhere('camps', c => c.demo), store.removeWhere('centres', c => c.demo), store.removeWhere('requests', r => r.demo)];
+    audit(admin, 'demo.purge'); return { users: ids.length, banks: n[0], camps: n[1], centres: n[2], requests: n[3] };
+  });
+  // Tamil Nadu sample data (real hospital names and addresses, Tamil donor names, camps, centres, open requests)
+  R.add('POST', '/api/admin/demo', only, ({ admin }) => {
+    const r = require('./lib/sampledata').load(store, core);
+    if (r.already) throw new HttpError(409, 'Sample data is already loaded. Delete it first to load it again.');
+    audit(admin, 'demo.load', '', r); return r;
   });
 };

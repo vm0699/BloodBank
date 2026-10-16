@@ -9,6 +9,7 @@ const A = require('./lib/auth');
 const live = require('./lib/live');
 const { hav, validLL } = require('./lib/geo');
 const { HttpError, bad, str, num, isDay, oneOf } = require('./lib/http');
+const { geocode } = require('./lib/geocode');
 
 const HOSP_TYPES = ['Hospital', 'Blood bank', 'Clinic', 'NGO / Camp organiser'];
 
@@ -51,6 +52,13 @@ module.exports = function register(R, { store, core }) {
     return o;
   };
   const meView = u => ({ me: core.userView(u) });
+  // If the hospital did not pin itself with the phone's GPS, find the real building from name + address.
+  async function pin(o, body) {
+    if (body.geo === 'gps' || !(o.address || o.name)) return;
+    const g = await geocode([o.name, o.address, o.city, 'Tamil Nadu, India'].filter(Boolean).join(', '), o.lat, o.lng, 40)
+      || await geocode([o.address, o.city, 'India'].filter(Boolean).join(', '), o.lat, o.lng, 40);
+    if (g) { o.lat = g.lat; o.lng = g.lng; o.geo = 'address'; }
+  }
 
   /* ---------- account type ---------- */
   R.add('PUT', '/api/me/role', { auth: 'user' }, ({ user, body }) => {
@@ -80,9 +88,10 @@ module.exports = function register(R, { store, core }) {
   });
 
   /* ---------- hospital application ---------- */
-  R.add('POST', '/api/hospital/apply', { auth: 'user' }, ({ user, body }) => {
+  R.add('POST', '/api/hospital/apply', { auth: 'user' }, async ({ user, body }) => {
     if (user.hospital && user.hospital.status === 'approved') throw new HttpError(409, 'Your hospital is already approved');
     const o = hospitalBody(body, user, false);
+    await pin(o, body);
     user.role = 'hospital'; user.donor = false; user.available = false;
     user.hospital = Object.assign({ components: ['Whole blood'] }, o, { status: 'pending', appliedAt: Date.now(), reason: '' });
     store.save();
@@ -90,9 +99,11 @@ module.exports = function register(R, { store, core }) {
     return meView(user);
   });
 
-  R.add('PUT', '/api/hospital', { auth: 'user' }, ({ user, body }) => {
+  R.add('PUT', '/api/hospital', { auth: 'user' }, async ({ user, body }) => {
     if (user.role !== 'hospital' || !user.hospital) throw bad('No hospital application yet');
     const o = hospitalBody(body, user, true);
+    if ('address' in o || 'name' in o || 'city' in o) { o.address = o.address || user.hospital.address; o.name = o.name || user.hospital.name; o.city = o.city || user.hospital.city;
+      o.lat = o.lat != null ? o.lat : user.hospital.lat; o.lng = o.lng != null ? o.lng : user.hospital.lng; await pin(o, body); }
     Object.assign(user.hospital, o);
     if (user.hospital.status === 'approved') {                   // keep the public blood-bank record in step
       const b = store.get('banks', user.hospital.bankId);
