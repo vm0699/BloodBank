@@ -58,7 +58,7 @@ const R = {
   }
 };
 require('./routes_app')(R, { store, core, dl, env, dataDir: DATA_DIR, limiter });
-require('./routes_hospital')(R, { store, core });
+require('./routes_hospital')(R, { store, core, limiter });
 require('./routes_admin')(R, { store, core, dl, env, dataDir: DATA_DIR, limiter });
 
 /* ---------- first admin ---------- */
@@ -109,7 +109,14 @@ async function handle(req, res) {
   const url = new URL(req.url, 'http://x');
 
   /* admin portal + its assets */
-  if (url.pathname === '/' ) { res.writeHead(302, { Location: '/admin' }); return res.end(); }
+  if (url.pathname === '/') {
+    const base = (env.PUBLIC_BASE_URL || '').replace(/\/$/, '');
+    return send(res, 200, 'text/html; charset=utf-8', '<!doctype html><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>LifeLink</title>' +
+      '<style>body{font-family:system-ui,sans-serif;background:#F6F7FB;color:#1C2140;margin:0;display:grid;place-items:center;min-height:100vh}.c{background:#fff;border-radius:20px;padding:28px;max-width:420px;width:calc(100% - 32px);box-shadow:0 4px 24px rgba(28,33,64,.1)}' +
+      'h1{margin:0 0 4px}p{color:#6B7089;margin:0 0 18px}a{display:block;text-align:center;padding:14px;border-radius:14px;margin-top:10px;font-weight:700;text-decoration:none}.p{background:#E0343A;color:#fff}.s{background:#FFF0ED;color:#E0343A}</style>' +
+      '<div class="c"><h1>LifeLink</h1><p>Blood &amp; organ donation, connected.</p><a class="p" href="/hospital">Hospital dashboard</a><a class="s" href="/admin">Admin portal</a></div>', { 'Content-Security-Policy': PAGE_CSP });
+  }
+  if (url.pathname === '/hospital' || url.pathname === '/hospital/') { if (serveStatic(res, path.join(__dirname, 'hospital', 'index.html'))) return; }
   if (url.pathname === '/privacy' || url.pathname === '/terms') {
     try {
       const support = env.SUPPORT_EMAIL ? 'at ' + env.SUPPORT_EMAIL : 'through Settings in the LifeLink app';

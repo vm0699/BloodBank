@@ -13,7 +13,7 @@ const { geocode } = require('./lib/geocode');
 
 const HOSP_TYPES = ['Hospital', 'Blood bank', 'Clinic', 'NGO / Camp organiser'];
 
-module.exports = function register(R, { store, core }) {
+module.exports = function register(R, { store, core, limiter }) {
   const today = () => core.dayKey(Date.now());
   const BGS = core.BGS;
 
@@ -185,7 +185,7 @@ module.exports = function register(R, { store, core }) {
   });
   R.add('GET', '/api/hospital/camps/:id/registrations', { auth: 'user' }, ({ user, params }) => {
     const x = ownCamp(user, params.id);
-    return { camp: campView(x), items: (x.regs || []).map(id => store.get('users', id)).filter(Boolean).map(u => ({ id: u.id, name: u.name || '', bg: u.bg || '', phone: A.showPhone(u.phone), verified: core.isVerified(u) })) };
+    return { camp: campView(x), items: (x.regs || []).map(id => store.get('users', id)).filter(Boolean).map(u => ({ id: u.id, name: u.name || '', bg: u.bg || '', phone: A.showPhone(u.phone), verified: core.isVerified(u), attended: (x.attended || []).includes(u.id), last: u.last || '' })) };
   });
 
   /* ---------- requests raised at this hospital ---------- */
@@ -199,6 +199,97 @@ module.exports = function register(R, { store, core }) {
       store.save();
     }
     return { ok: true, status: r.status };
+  });
+
+  /* ============ web dashboard extras: who am I, donor list, invitations, camp check-in, bank map, donation log ============ */
+  const audit = (user, b, action, meta) => store.insert('audit', { at: Date.now(), by: 'hospital:' + b.name, role: 'hospital', action, target: user.id, meta: meta || {} });
+  const dayStamp = () => core.dayKey(Date.now());
+
+  R.add('GET', '/api/hospital/me', { auth: 'user' }, ({ user }) => ({ me: core.userView(user) }));
+
+  // Registered donors around the hospital. Names, groups and areas only: phone numbers stay private (contact them with an invitation).
+  R.add('GET', '/api/hospital/donors', { auth: 'user' }, ({ user, query }) => {
+    const b = approvedBank(user), c = core.cfg(), fresh = Date.now() - c.presenceFreshMin * 60e3;
+    const radius = Math.min(500, Math.max(1, +query.radius || 25)), bg = oneOf(query.bg, BGS) || '', q = str(query.q, 40).toLowerCase();
+    const city = String(b.city || '').toLowerCase();
+    let rows = store.list('users').filter(u => u.donor === true && (u.role || 'user') === 'user' && u.status !== 'suspended' && u.bg && (!bg || u.bg === bg)).map(u => {
+      const km = u.presence ? hav(b.lat, b.lng, u.presence.lat, u.presence.lng) : null;
+      return { u, km };
+    }).filter(({ u, km }) => km != null ? km <= radius : String(u.city || '').toLowerCase() === city)
+      .filter(({ u }) => (query.verified !== '1' || core.isVerified(u)) && (query.available !== '1' || core.donorListed(u, c)) && (!q || String(u.name || '').toLowerCase().includes(q) || String(u.city || '').toLowerCase().includes(q) || String(u.area || '').toLowerCase().includes(q)));
+    rows = rows.map(({ u, km }) => {
+      const e = core.eligibility(u);
+      return { id: u.id, name: u.name || '', bg: u.bg, city: u.city || '', area: u.area || '', km: km == null ? null : Math.round(km * 10) / 10, verified: core.isVerified(u), listed: core.donorListed(u, c),
+        online: !!(u.presence && (u.demo || u.presence.seen >= fresh)), eligible: e.ok, nextEligible: e.next ? core.dayKey(e.next) : '', last: u.last || '', prefs: u.prefs || [], night: !!u.night,
+        donations: (u.donatedBefore || 0) + store.filter('donations', d => d.userId === u.id).length };
+    }).sort((x, y) => (y.listed - x.listed) || ((x.km == null ? 1e9 : x.km) - (y.km == null ? 1e9 : y.km))).slice(0, 400);
+    audit(user, b, 'hospital.donors.view', { count: rows.length, radius, bg });
+    const counts = Object.fromEntries(BGS.map(g => [g, 0])); rows.forEach(r => { if (r.listed) counts[r.bg]++; });
+    return { items: rows, total: rows.length, availableByGroup: counts, radius };
+  });
+
+  // Invite chosen donors to donate (an in-app notification in their language). Each donor can be invited by a hospital once every 6 hours.
+  const sendInvites = (b, ids, title, body, titleTa, bodyTa, data) => {
+    let sent = 0, skipped = 0;
+    ids.forEach(id => {
+      const u = store.get('users', id);
+      if (!u || u.donor !== true || u.status === 'suspended' || !limiter.take('invite:' + b.id + ':' + id, 1, 6 * 3600e3)) { skipped++; return; }
+      core.notify(id, 'hospital_invite', {}, Object.assign({ bankId: b.id }, data || {}), { title, body, titleTa, bodyTa }); sent++;
+    });
+    return { sent, skipped };
+  };
+  R.add('POST', '/api/hospital/invite', { auth: 'user' }, ({ user, body }) => {
+    const b = approvedBank(user);
+    if (!limiter.take('invite-batch:' + user.id, 30, 3600e3)) throw new HttpError(429, 'Too many invitations just now. Please wait a little.');
+    const ids = [].concat(body.userIds || []).map(x => str(x, 40)).filter(Boolean).slice(0, 100); if (!ids.length) throw bad('Choose at least one donor');
+    const msg = str(body.message, 200);
+    const r = sendInvites(b, ids, b.name + ' needs blood donors', msg || 'Please consider donating blood at ' + b.name + ', ' + (b.city || '') + '. Every unit helps.',
+      b.name + ' இரத்த கொடையாளர்களை அழைக்கிறது', msg || b.name + ' (' + (b.city || '') + ') இல் இரத்த தானம் செய்ய முடியுமா? ஒவ்வொரு யூனிட்டும் உதவும்.');
+    audit(user, b, 'hospital.invite', r);
+    return r;
+  });
+  R.add('POST', '/api/hospital/camps/:id/invite', { auth: 'user' }, ({ user, params, body }) => {
+    const x = ownCamp(user, params.id), b = approvedBank(user), c = core.cfg();
+    if (x.status === 'cancelled') throw bad('This camp is cancelled');
+    if (!limiter.take('camp-invite:' + x.id, 6, 24 * 3600e3)) throw new HttpError(429, 'You already invited donors to this camp several times today.');
+    const radius = Math.min(100, Math.max(1, +body.radiusKm || 25));
+    const ids = store.list('users').filter(u => core.donorListed(u, c) && !(x.regs || []).includes(u.id) && hav(x.lat, x.lng, u.presence.lat, u.presence.lng) <= radius).slice(0, 300).map(u => u.id);
+    const r = sendInvites(b, ids, 'Blood camp near you: ' + x.title, x.date + ' - ' + (x.venue || b.name) + '. Open Blood drives in LifeLink to register.',
+      'அருகில் இரத்த தான முகாம்: ' + x.title, x.date + ' - ' + (x.venue || b.name) + '. பதிவு செய்ய LifeLink இல் "இரத்த தான முகாம்கள்" திறக்கவும்.', { campId: x.id });
+    audit(user, b, 'hospital.camp.invite', Object.assign({ camp: x.id }, r));
+    return Object.assign({ candidates: ids.length }, r);
+  });
+
+  // Camp day: mark a registered donor as having donated -> donation recorded, the donor's cooldown starts, the bank's stock goes up by one
+  R.add('POST', '/api/hospital/camps/:id/checkin', { auth: 'user' }, ({ user, params, body }) => {
+    const x = ownCamp(user, params.id), b = approvedBank(user), u = store.get('users', str(body.userId, 40));
+    if (!u || !(x.regs || []).includes(u.id)) throw bad('This person is not registered for the camp');
+    if (x.status === 'cancelled') throw bad('This camp is cancelled');
+    x.attended = x.attended || [];
+    if (x.attended.includes(u.id)) throw new HttpError(409, 'Already recorded for this camp');
+    x.attended.push(u.id);
+    store.insert('donations', { userId: u.id, t: Date.now(), place: b.name, type: 'Whole blood', units: 1, forWho: 'Camp: ' + x.title, campId: x.id, bankId: b.id });
+    u.last = dayStamp(); u.notified = Object.assign({}, u.notified, { eligibleOn: null });
+    if (u.bg) { b.stock = b.stock || {}; b.stock[u.bg] = (b.stock[u.bg] || 0) + 1; b.rev = (b.rev || 0) + 1; b.updatedAt = Date.now(); }
+    core.notify(u.id, 'donation_confirmed', {}, { campId: x.id }, { title: 'Donation recorded', body: 'Thank you for donating at ' + x.title + '. You can donate again in 3 months.', titleTa: 'தானம் பதிவு செய்யப்பட்டது', bodyTa: x.title + ' இல் தானம் செய்ததற்கு நன்றி. 3 மாதங்களுக்குப் பிறகு மீண்டும் தானம் செய்யலாம்.' });
+    audit(user, b, 'hospital.camp.checkin', { camp: x.id });
+    store.save();
+    return { ok: true, attended: x.attended.length, bank: bankView(b) };
+  });
+
+  // Every blood bank with its stock (hospital accounts only) - for the bank map
+  R.add('GET', '/api/hospital/banks', { auth: 'user' }, ({ user }) => {
+    const mine = approvedBank(user);
+    return { items: store.list('banks').filter(b => b.active !== false).map(b => Object.assign(bankView(b), { mine: b.id === mine.id, km: Math.round(hav(mine.lat, mine.lng, b.lat, b.lng) * 10) / 10 })).sort((a, z) => a.km - z.km) };
+  });
+
+  // Donations recorded at this hospital (camp check-ins and requests raised here)
+  R.add('GET', '/api/hospital/donations', { auth: 'user' }, ({ user }) => {
+    const b = approvedBank(user), name = String(b.name || '').toLowerCase();
+    const reqHere = new Set(store.filter('requests', r => r.bankId === b.id || String(r.hospital || '').toLowerCase() === name).map(r => r.id));
+    const items = store.filter('donations', d => d.bankId === b.id || (d.requestId && reqHere.has(d.requestId)) || String(d.place || '').toLowerCase() === name)
+      .sort((a, z) => z.t - a.t).slice(0, 200).map(d => { const u = store.get('users', d.userId) || {}; return { id: d.id, t: d.t, donor: u.name || 'Donor', bg: u.bg || '', units: d.units || 1, type: d.type || 'Whole blood', source: d.forWho || '' }; });
+    return { items };
   });
 };
 module.exports.HOSP_TYPES = HOSP_TYPES;

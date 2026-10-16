@@ -29,6 +29,7 @@ Base: `https://<server>` · JSON in/out · `Authorization: Bearer <jwt>` unless 
 | `POST /api/me/donor {enable}` | become (or stop being) a donor. Needs a blood group. Only donors are listed, alerted or allowed to offer. |
 | `POST /api/hospital/apply {name,type,regNo,phone,address,city,hours,lat,lng}` | hospital application (status `pending` until a LifeLink admin approves) |
 | `PUT /api/hospital {...}` | edit hospital details (updates the public blood-bank listing once approved) |
+| `GET /api/hospital/me`, `GET /api/hospital/donors?radius&bg&q&verified&available`, `POST /api/hospital/invite {userIds,message}`, `POST /api/hospital/camps/:id/invite {radiusKm}`, `POST /api/hospital/camps/:id/checkin {userId}`, `GET /api/hospital/banks`, `GET /api/hospital/donations` | web hospital dashboard (approved hospitals only) |
 | `GET /api/hospital/dashboard` | approved hospitals: bank + stock + revision, requests at the hospital, nearby open requests, donors online by group, camps |
 | `PATCH /api/hospital/stock {group, delta}` or `{group, set, rev}` | atomic stock change; an absolute `set` must carry the `rev` it was based on, otherwise `409` with the current stock |
 | `POST /api/hospital/camps`, `PATCH /api/hospital/camps/:id`, `GET /api/hospital/camps/:id/registrations` | camps owned by the hospital |

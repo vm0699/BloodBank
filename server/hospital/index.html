@@ -1,0 +1,339 @@
+<!doctype html>
+<html lang="en"><head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>LifeLink Hospital Dashboard</title>
+<link rel="icon" href="/admin/favicon.svg">
+<link rel="stylesheet" href="/admin/leaflet.css">
+<style>
+:root{--bg:#F6F7FB;--card:#fff;--fg:#1C2140;--mut:#6B7089;--line:#E7E9F2;--acc:#E0343A;--acc2:#FFF0ED;--ok:#1E7D55;--okbg:#E3F3EB;--warn:#A86A0C;--warnbg:#FBF1DC;--red:#C62828;--shadow:0 2px 14px rgba(28,33,64,.07)}
+*{box-sizing:border-box}html,body{margin:0}body{background:var(--bg);color:var(--fg);font:15px/1.5 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif}
+h1{font-size:24px;margin:0 0 4px}h2{font-size:17px;margin:0 0 10px}h3{font-size:15px;margin:0 0 6px}p{margin:0}
+button{font:inherit;color:inherit;cursor:pointer}input,select,textarea{font:inherit;color:var(--fg)}
+.muted{color:var(--mut)}.sm{font-size:13px}.xs{font-size:12px}.b{font-weight:650}.right{text-align:right}.c{text-align:center}
+.btn{display:inline-flex;align-items:center;gap:6px;justify-content:center;min-height:38px;padding:0 16px;border-radius:12px;border:1px solid var(--line);background:#fff;font-weight:600;font-size:14px}
+.btn:hover{border-color:#cfd3e4}.btn.p{background:var(--acc);border-color:var(--acc);color:#fff;box-shadow:0 6px 14px rgba(224,52,58,.22)}.btn.d{color:var(--red);border-color:#f1c4c4}.btn.s{min-height:30px;padding:0 10px;font-size:13px;border-radius:9px}
+.btn[disabled]{opacity:.5;pointer-events:none}
+.card{background:var(--card);border:1px solid var(--line);border-radius:16px;padding:16px;box-shadow:var(--shadow)}
+.grid{display:grid;gap:14px}.g2{grid-template-columns:repeat(2,1fr)}.g3{grid-template-columns:repeat(3,1fr)}.g4{grid-template-columns:repeat(4,1fr)}.g5{grid-template-columns:repeat(5,1fr)}
+@media(max-width:900px){.g4,.g5{grid-template-columns:repeat(2,1fr)}.g3,.g2{grid-template-columns:1fr}}
+.row{display:flex;align-items:center;gap:10px;flex-wrap:wrap}.between{justify-content:space-between}
+.tag{display:inline-block;padding:2px 9px;border-radius:999px;font-size:12px;font-weight:650;background:#EEF0F7;color:var(--mut)}
+.tag.ok{background:var(--okbg);color:var(--ok)}.tag.warn{background:var(--warnbg);color:var(--warn)}.tag.red{background:var(--acc);color:#fff}.tag.bg{background:var(--acc2);color:var(--acc)}
+table{width:100%;border-collapse:collapse}th{font-size:12px;text-transform:uppercase;letter-spacing:.4px;color:var(--mut);text-align:left;padding:8px 10px;border-bottom:1px solid var(--line);white-space:nowrap}
+td{padding:10px;border-bottom:1px solid var(--line);vertical-align:middle}tr:last-child td{border-bottom:0}tbody tr:hover{background:#FAFBFE}
+.tw{overflow:auto;border-radius:12px}
+label{display:block;font-size:12px;font-weight:650;color:var(--mut);margin-bottom:10px}label>input,label>select,label>textarea{display:block;width:100%;margin-top:4px;padding:9px 12px;border:1px solid var(--line);border-radius:10px;background:#fff;font-weight:400}
+input:focus,select:focus,textarea:focus{outline:2px solid #f4b9bb;border-color:var(--acc)}
+.fields{display:grid;grid-template-columns:repeat(2,1fr);gap:0 14px}@media(max-width:700px){.fields{grid-template-columns:1fr}}
+/* shell */
+#app{display:grid;grid-template-columns:230px 1fr;min-height:100vh}
+#side{background:#1C2140;color:#fff;padding:18px 12px;position:sticky;top:0;height:100vh;display:flex;flex-direction:column;gap:4px}
+#side .logo{font-weight:800;font-size:20px;padding:4px 10px 14px;display:flex;align-items:center;gap:8px}#side .logo i{font-style:normal;background:var(--acc);border-radius:10px;padding:3px 7px}
+#side button.nav{display:flex;align-items:center;gap:10px;width:100%;text-align:left;border:0;background:none;color:#cfd3ea;padding:10px 12px;border-radius:10px;font-weight:600}
+#side button.nav:hover{background:rgba(255,255,255,.07)}#side button.nav.on{background:var(--acc);color:#fff}
+#side .who{margin-top:auto;font-size:12px;color:#aab0cf;padding:10px}#side .who b{display:block;color:#fff;font-size:13px}
+#main{padding:22px 26px 60px;min-width:0}
+@media(max-width:800px){#app{grid-template-columns:1fr}#side{position:static;height:auto;flex-direction:row;flex-wrap:wrap;align-items:center;padding:10px}#side .who{display:none}#side .logo{padding:2px 8px}#main{padding:16px}}
+.kpi .n{font-size:28px;font-weight:800;letter-spacing:-.5px}.kpi .l{font-size:12px;color:var(--mut)}
+.bgt{border:1px solid #f6d3d0;background:var(--acc2);border-radius:14px;padding:10px;text-align:center}.bgt b{display:block;font-size:15px}.bgt .u{font-size:22px;font-weight:800}
+.bgt.low{background:#FDECEC;border-color:#f0b3b3}.bgt.low .u{color:var(--red)}
+.bar{height:7px;background:#EEF0F7;border-radius:6px;overflow:hidden}.bar i{display:block;height:100%;background:var(--acc)}
+.stp{width:32px;height:32px;border-radius:9px;border:1px solid var(--line);background:#fff;font-size:18px;font-weight:700;line-height:1}.stp:hover{background:var(--acc2);color:var(--acc)}
+.num{width:78px!important;text-align:center;display:inline-block!important;margin:0!important}
+/* modal + toast + login */
+.modal{position:fixed;inset:0;background:rgba(20,24,50,.5);display:flex;align-items:flex-start;justify-content:center;padding:5vh 14px;z-index:50;overflow:auto}
+.modal .box{background:#fff;border-radius:18px;padding:20px;width:100%;max-width:640px;box-shadow:0 20px 60px rgba(0,0,0,.3)}.modal .box.wide{max-width:900px}
+.acts{display:flex;gap:8px;justify-content:flex-end;margin-top:14px;flex-wrap:wrap}
+#toast{position:fixed;left:50%;bottom:26px;transform:translateX(-50%);background:#1C2140;color:#fff;padding:10px 18px;border-radius:12px;font-size:14px;z-index:80;opacity:0;pointer-events:none;transition:.25s}#toast.on{opacity:1}
+.login{max-width:420px;margin:9vh auto;padding:0 16px}.login .card{padding:26px}
+.hero{background:linear-gradient(135deg,#FFF3EE,#FFDFD8);border-radius:18px;padding:18px 20px;display:flex;align-items:center;gap:16px;justify-content:space-between;flex-wrap:wrap}
+.chips{display:flex;gap:8px;flex-wrap:wrap}.chip{border:1px solid var(--line);background:#fff;border-radius:999px;padding:4px 12px;font-size:13px;font-weight:600}.chip.on{background:var(--acc);color:#fff;border-color:var(--acc)}
+#map{height:520px;border-radius:14px;border:1px solid var(--line)}
+.pin{width:30px;height:30px;border-radius:50%;background:#fff;border:3px solid var(--acc);color:var(--acc);display:grid;place-items:center;font-weight:800;font-size:13px;box-shadow:0 2px 8px rgba(0,0,0,.3)}.pin.me{background:var(--acc);color:#fff}
+.kv{display:grid;grid-template-columns:150px 1fr;gap:6px 12px;font-size:14px}.kv span:nth-child(odd){color:var(--mut)}
+</style></head>
+<body>
+<div id="root"></div><div id="toast"></div>
+<script>
+'use strict';
+const API = location.origin + '/api';
+const BGS = ['A+', 'A-', 'B+', 'B-', 'AB+', 'AB-', 'O+', 'O-'];
+const HOSP_TYPES = ['Hospital', 'Blood bank', 'Clinic', 'NGO / Camp organiser'];
+const CITIES = [['Chennai', 13.0827, 80.2707], ['Kattankulathur', 12.8231, 80.0444], ['Chengalpattu', 12.6819, 79.9888], ['Tambaram', 12.9249, 80.1], ['Madurai', 9.9252, 78.1198], ['Coimbatore', 11.0168, 76.9558],
+  ['Tiruchirappalli', 10.7905, 78.7047], ['Salem', 11.6643, 78.146], ['Tirunelveli', 8.7139, 77.7567], ['Vellore', 12.9165, 79.1325], ['Erode', 11.341, 77.7172], ['Thanjavur', 10.787, 79.1378], ['Puducherry', 11.9416, 79.8083],
+  ['Bengaluru', 12.9716, 77.5946], ['Hyderabad', 17.385, 78.4867], ['Kochi', 9.9312, 76.2673]];
+const $ = s => document.querySelector(s);
+const esc = s => String(s == null ? '' : s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+const S = { token: localStorage.getItem('llh.token') || '', me: null, page: 'overview', dash: null, donors: null, camps: null, f: { radius: 25, bg: '', verified: false, available: false, q: '' }, sel: new Set(), reqFilter: 'open' };
+let tT = 0; const toast = m => { const t = $('#toast'); t.textContent = m; t.classList.add('on'); clearTimeout(tT); tT = setTimeout(() => t.classList.remove('on'), 3200); };
+const fdt = t => t ? new Date(t).toLocaleString([], { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' }) : '-';
+const fd = d => { if (!d) return '-'; const x = typeof d === 'string' ? new Date(d + 'T00:00:00') : new Date(d); return x.toLocaleDateString([], { day: 'numeric', month: 'short', year: 'numeric' }); };
+const ago = t => { const m = Math.round((Date.now() - t) / 60000); return m < 1 ? 'just now' : m < 60 ? m + ' min ago' : m < 1440 ? Math.round(m / 60) + ' h ago' : Math.round(m / 1440) + ' d ago'; };
+
+async function api(method, path, body) {
+  let r; try { r = await fetch(API + path, { method, headers: Object.assign({ 'Content-Type': 'application/json' }, S.token ? { Authorization: 'Bearer ' + S.token } : {}), body: body !== undefined ? JSON.stringify(body) : undefined }); }
+  catch (e) { throw new Error('Cannot reach the server. Check your connection.'); }
+  const j = await r.json().catch(() => ({}));
+  if (r.status === 401 && S.token) { logout(true); throw new Error('Please sign in again'); }
+  if (!r.ok) throw Object.assign(new Error(j.error || 'Something went wrong'), { status: r.status, data: j });
+  return j;
+}
+const guard = fn => async (...a) => { try { return await fn(...a); } catch (e) { if (e.message !== 'Please sign in again') toast(e.message); } };
+function logout(silent) { S.token = ''; S.me = null; localStorage.removeItem('llh.token'); if (!silent) toast('Signed out'); render(); }
+function csv(name, rows) {
+  const body = rows.map(r => r.map(v => '"' + String(v == null ? '' : v).replace(/"/g, '""') + '"').join(',')).join('\r\n');
+  const a = document.createElement('a'); a.href = URL.createObjectURL(new Blob(['﻿' + body], { type: 'text/csv' })); a.download = name; a.click(); setTimeout(() => URL.revokeObjectURL(a.href), 1500);
+}
+function modal(html, wide) { closeModal(); const m = document.createElement('div'); m.className = 'modal'; m.id = 'modal'; m.innerHTML = '<div class="box' + (wide ? ' wide' : '') + '">' + html + '</div>'; m.addEventListener('mousedown', e => { if (e.target === m) closeModal(); }); document.body.appendChild(m); return m; }
+function closeModal() { const m = $('#modal'); if (m) m.remove(); }
+const formVals = f => Object.fromEntries([...f.elements].filter(e => e.name).map(e => [e.name, e.type === 'checkbox' ? e.checked : e.value]));
+
+/* ================= sign in ================= */
+let loginStep = { phone: '', code: '', sent: false, dev: '' };
+function loginView() {
+  $('#root').innerHTML = '<div class="login"><div class="card"><div class="row" style="gap:10px;margin-bottom:6px"><span style="background:var(--acc);color:#fff;border-radius:12px;padding:5px 10px;font-weight:800;font-size:20px">LifeLink</span><span class="muted b">Hospital dashboard</span></div>' +
+    '<p class="muted sm" style="margin-bottom:16px">Manage blood stock, requests, donors and camps for your hospital or blood bank. Sign in with the mobile number of the person managing it.</p>' +
+    (!loginStep.sent ? '<label>Mobile number<input id="ph" inputmode="tel" placeholder="10-digit mobile number" value="' + esc(loginStep.phone) + '"></label><button class="btn p" style="width:100%" id="go">Send code</button>' :
+      '<p class="sm muted" style="margin-bottom:8px">Code sent to ' + esc(loginStep.phone) + '.</p>' + (loginStep.dev ? '<p class="sm" style="background:var(--warnbg);padding:8px 10px;border-radius:10px;margin-bottom:10px">Test mode: your code is <b>' + esc(loginStep.dev) + '</b></p>' : '') +
+      '<label>6-digit code<input id="cd" inputmode="numeric" maxlength="6" value="' + esc(loginStep.code) + '"></label><button class="btn p" style="width:100%" id="go">Sign in</button><button class="btn" style="width:100%;margin-top:8px" id="back">Use another number</button>') +
+    '</div><p class="xs muted c" style="margin-top:14px">New hospital? Sign in with your number and you will be asked to register it. LifeLink checks the registration number before activating the dashboard.</p></div>';
+  const go = $('#go'); (loginStep.sent ? $('#cd') : $('#ph')).focus();
+  (loginStep.sent ? $('#cd') : $('#ph')).addEventListener('keydown', e => { if (e.key === 'Enter') go.click(); });
+  go.onclick = guard(async () => {
+    if (!loginStep.sent) {
+      loginStep.phone = $('#ph').value.trim(); const j = await api('POST', '/auth/otp/request', { phone: loginStep.phone });
+      loginStep.sent = true; loginStep.dev = j.devOtp || ''; loginStep.code = j.devOtp || ''; loginView();
+    } else {
+      const j = await api('POST', '/auth/otp/verify', { phone: loginStep.phone, otp: $('#cd').value.trim() });
+      S.token = j.token; localStorage.setItem('llh.token', j.token); loginStep = { phone: '', code: '', sent: false, dev: '' }; await boot();
+    }
+  });
+  const b = $('#back'); if (b) b.onclick = () => { loginStep.sent = false; loginStep.dev = ''; loginView(); };
+}
+
+/* ================= registration / status ================= */
+function regForm(me, mode) {
+  const h = me.hospital || {}, city = h.city || 'Chennai', c0 = CITIES.find(x => x[0] === city) || CITIES[0];
+  return '<form id="rf" class="fields"><label>Your name (contact person)<input name="contact" value="' + esc(me.profile.name || '') + '" required></label>' +
+    '<label>Hospital / blood bank name<input name="name" value="' + esc(h.name || '') + '" required></label>' +
+    '<label>Type<select name="type">' + HOSP_TYPES.map(t => '<option' + ((h.type || 'Hospital') === t ? ' selected' : '') + '>' + t + '</option>').join('') + '</select></label>' +
+    '<label>Registration / licence number<input name="regNo" value="' + esc(h.regNo || '') + '" required></label>' +
+    '<label>Hospital phone<input name="phone" value="' + esc((h.phone || me.profile.phone || '').replace(/^\+91/, '')) + '" required></label>' +
+    '<label>Opening hours<input name="hours" placeholder="e.g. 24 hours" value="' + esc(h.hours || '') + '"></label>' +
+    '<label style="grid-column:1/-1">Full address<input name="address" value="' + esc(h.address || '') + '" required></label>' +
+    '<label>City<select name="city">' + CITIES.map(c => '<option' + (c[0] === city ? ' selected' : '') + '>' + c[0] + '</option>').join('') + '</select></label>' +
+    '<label>Location<span class="row" style="margin-top:4px"><button type="button" class="btn s" id="gps">Use my current location</button><span class="xs muted" id="gpsout">' + (h.lat ? 'Saved: ' + (+h.lat).toFixed(4) + ', ' + (+h.lng).toFixed(4) : 'Found from the address') + '</span></span></label>' +
+    '<input type="hidden" name="lat" value="' + (h.lat || c0[1]) + '"><input type="hidden" name="lng" value="' + (h.lng || c0[2]) + '"><input type="hidden" name="geo" value="city"></form>' +
+    '<p class="xs muted">The location shown on maps and used for "Directions" is looked up from the address, so please enter the full street address.</p>' +
+    '<div class="acts"><button class="btn p" id="rsubmit">' + (mode === 'edit' ? 'Save changes' : 'Submit for approval') + '</button></div>';
+}
+function bindReg(me, mode) {
+  const f = $('#rf'); if (!f) return;
+  f.elements.city.onchange = () => { const c = CITIES.find(x => x[0] === f.elements.city.value); if (c && f.elements.geo.value !== 'gps') { f.elements.lat.value = c[1]; f.elements.lng.value = c[2]; } };
+  $('#gps').onclick = () => navigator.geolocation ? navigator.geolocation.getCurrentPosition(p => { f.elements.lat.value = p.coords.latitude; f.elements.lng.value = p.coords.longitude; f.elements.geo.value = 'gps'; $('#gpsout').textContent = 'Using this device location'; }, () => toast('Could not get the location. The address will be used instead.')) : toast('Location is not available here');
+  $('#rsubmit').onclick = guard(async () => {
+    if (!f.reportValidity()) return; const v = formVals(f);
+    const body = { name: v.name, type: v.type, regNo: v.regNo, phone: v.phone, address: v.address, city: v.city, hours: v.hours, lat: +v.lat, lng: +v.lng, geo: v.geo };
+    if (v.contact.trim()) await api('PUT', '/me', { name: v.contact.trim() });
+    if (mode === 'edit') await api('PUT', '/hospital', body);
+    else { if ((me.role || 'user') !== 'hospital') await api('PUT', '/me/role', { role: 'hospital' }); await api('POST', '/hospital/apply', body); }
+    toast(mode === 'edit' ? 'Saved' : 'Submitted for approval'); closeModal(); await boot();
+  });
+}
+function gateView() {
+  const me = S.me, h = me.hospital;
+  let inner;
+  if (!h) inner = '<h1>Register your hospital</h1><p class="muted" style="margin-bottom:14px">Tell us about your hospital or blood bank. A LifeLink team member verifies the registration number, usually within a day, and then this dashboard unlocks.</p>' +
+    (me.donor ? '<div class="card" style="background:var(--warnbg);border-color:transparent;margin-bottom:14px"><b>Note:</b> this mobile number is currently a donor account. Registering a hospital turns donor mode off for it. Use the hospital manager\'s own number if you want to stay a donor.</div>' : '') + regForm(me, 'new');
+  else if (h.status === 'pending') inner = '<div class="hero"><div><h1>Waiting for approval</h1><p class="muted">We are checking <b>' + esc(h.name) + '</b> (' + esc(h.regNo) + '). You will be able to sign in here as soon as it is approved.</p></div><button class="btn" id="redo">Edit details</button></div>';
+  else inner = '<div class="card" style="background:var(--warnbg);border-color:transparent"><h2>Application not approved</h2><p>' + esc(h.reason || 'The details could not be verified.') + '</p></div><h2 style="margin-top:18px">Update your details and submit again</h2>' + regForm(me, 'new');
+  $('#root').innerHTML = '<div style="max-width:820px;margin:5vh auto;padding:0 16px"><div class="row between" style="margin-bottom:14px"><span class="b" style="color:var(--acc);font-size:20px">LifeLink · Hospital dashboard</span><button class="btn s" id="so">Sign out</button></div><div class="card">' + inner + '</div></div>';
+  $('#so').onclick = () => logout();
+  const r = $('#redo'); if (r) r.onclick = () => { modal('<h2>Edit details</h2>' + regForm(me, 'new'), true); bindReg(me, 'new'); };
+  bindReg(me, 'new');
+}
+
+/* ================= dashboard shell ================= */
+const NAV = [['overview', 'Overview'], ['stock', 'Blood stock'], ['requests', 'Requests'], ['donors', 'Donors'], ['camps', 'Camps'], ['banks', 'Blood bank map'], ['donations', 'Donations'], ['profile', 'Hospital profile']];
+function shell() {
+  const h = S.me.hospital;
+  $('#root').innerHTML = '<div id="app"><aside id="side"><div class="logo"><i>🩸</i>LifeLink</div>' + NAV.map(n => '<button class="nav' + (S.page === n[0] ? ' on' : '') + '" data-p="' + n[0] + '">' + n[1] + '</button>').join('') +
+    '<div class="who"><b>' + esc(h.name) + '</b>' + esc(S.me.profile.name || S.me.profile.phone) + '<br><a href="#" id="so" style="color:#fff">Sign out</a></div></aside><main id="main"></main></div>';
+  document.querySelectorAll('#side [data-p]').forEach(b => b.onclick = () => go(b.dataset.p));
+  $('#so').onclick = e => { e.preventDefault(); logout(); };
+}
+const go = guard(async p => { S.page = p; shell(); await PAGES[p](); });
+async function refreshDash() { S.dash = await api('GET', '/hospital/dashboard'); return S.dash; }
+const head = (t, sub, right) => '<div class="row between" style="margin-bottom:16px"><div><h1>' + t + '</h1>' + (sub ? '<p class="muted sm">' + sub + '</p>' : '') + '</div><div class="row">' + (right || '') + '</div></div>';
+const stockLevel = n => n < 5 ? 'low' : '';
+const urgTag = u => '<span class="tag ' + (u === 'critical' ? 'red' : u === 'urgent' ? 'warn' : '') + '">' + esc(u) + '</span>';
+
+/* ================= pages ================= */
+const PAGES = {};
+PAGES.overview = async () => {
+  const d = await refreshDash(), st = d.bank.stock, total = BGS.reduce((a, g) => a + (st[g] || 0), 0), low = BGS.filter(g => (st[g] || 0) < 5);
+  const open = d.requests.filter(r => r.status === 'open'), avail = BGS.reduce((a, g) => a + (d.donorCounts[g] || 0), 0), camps = d.camps.filter(c => c.status !== 'cancelled' && c.date >= new Date().toISOString().slice(0, 10));
+  $('#main').innerHTML = head(esc(d.hospital.name), esc(d.hospital.type) + ' · ' + esc(d.hospital.city), '<button class="btn" data-a="newreq">Post a blood request</button><button class="btn p" data-a="newcamp">Create a camp</button>') +
+    (low.length ? '<div class="card" style="background:#FDECEC;border-color:#f0b3b3;margin-bottom:14px"><b>Low stock:</b> ' + low.map(g => g + ' (' + (st[g] || 0) + ')').join(', ') + ' &nbsp; <a href="#" data-a="goto" data-p="stock">Update stock</a> · <a href="#" data-a="goto" data-p="donors">Find donors</a></div>' : '') +
+    '<div class="grid g4" style="margin-bottom:14px">' + [['Units in stock', total], ['Open requests', open.length], ['Donors available within 15 km', avail], ['Upcoming camps', camps.length]].map(k => '<div class="card kpi"><div class="n">' + k[1] + '</div><div class="l">' + k[0] + '</div></div>').join('') + '</div>' +
+    '<div class="card" style="margin-bottom:14px"><div class="row between"><h2>Blood stock</h2><a href="#" data-a="goto" data-p="stock">Manage</a></div><div class="grid g4" style="grid-template-columns:repeat(8,1fr)">' +
+    BGS.map(g => '<div class="bgt ' + stockLevel(st[g] || 0) + '"><b>' + g + '</b><span class="u">' + (st[g] || 0) + '</span><div class="xs muted">' + (d.donorCounts[g] || 0) + ' donors</div></div>').join('') + '</div></div>' +
+    '<div class="grid g2"><div class="card"><div class="row between"><h2>Open requests at your hospital</h2><a href="#" data-a="goto" data-p="requests">All</a></div>' +
+    (open.length ? open.slice(0, 5).map(r => '<div class="row between" style="padding:8px 0;border-top:1px solid var(--line)"><div><b>' + esc(r.patient) + '</b> <span class="tag bg">' + esc(r.bg) + '</span><div class="xs muted">' + r.received + '/' + r.units + ' units · ' + r.responders + ' donors responding · ' + ago(r.created) + '</div></div>' + urgTag(r.urgency) + '</div>').join('') : '<p class="muted sm">No open requests.</p>') + '</div>' +
+    '<div class="card"><div class="row between"><h2>Upcoming camps</h2><a href="#" data-a="goto" data-p="camps">All</a></div>' +
+    (camps.length ? camps.slice(0, 5).map(c => '<div style="padding:8px 0;border-top:1px solid var(--line)"><b>' + esc(c.title) + '</b><div class="xs muted">' + fd(c.date) + ' · ' + esc(c.venue) + '</div><div class="bar" style="margin-top:6px"><i style="width:' + (c.slots ? Math.min(100, c.regCount / c.slots * 100) : 0) + '%"></i></div><div class="xs muted">' + c.regCount + ' of ' + c.slots + ' seats booked</div></div>').join('') : '<p class="muted sm">No camps scheduled. Create one to invite donors.</p>') + '</div></div>';
+};
+
+PAGES.stock = async () => {
+  const d = S.dash || await refreshDash();
+  const draw = () => {
+    const b = S.dash.bank;
+    $('#main').innerHTML = head('Blood stock', 'Units available. Changes show on the map for donors and other hospitals straight away. ' + (b.updatedAt ? 'Last updated ' + ago(b.updatedAt) + '.' : ''), '<button class="btn" data-a="exportstock">Export CSV</button>') +
+      '<div class="card"><div class="tw"><table><thead><tr><th>Group</th><th>Units</th><th>Status</th><th>Adjust</th><th>Set exactly</th></tr></thead><tbody>' +
+      BGS.map(g => { const n = b.stock[g] || 0; return '<tr><td><span class="tag bg" style="font-size:14px">' + g + '</span></td><td><b style="font-size:20px">' + n + '</b></td><td><span class="tag ' + (n < 5 ? 'red' : n < 12 ? 'warn' : 'ok') + '">' + (n < 5 ? 'Low' : n < 12 ? 'Fair' : 'Good') + '</span></td>' +
+        '<td><button class="stp" data-a="stk" data-g="' + g + '" data-d="-1">−</button> <button class="stp" data-a="stk" data-g="' + g + '" data-d="1">+</button> <button class="btn s" data-a="stk" data-g="' + g + '" data-d="5">+5</button> <button class="btn s" data-a="stk" data-g="' + g + '" data-d="-5">−5</button></td>' +
+        '<td><input class="num" type="number" min="0" max="9999" value="' + n + '" data-g="' + g + '" id="set-' + g.replace('+', 'p').replace('-', 'm') + '"> <button class="btn s" data-a="stkset" data-g="' + g + '">Set</button></td></tr>'; }).join('') + '</tbody></table></div></div>';
+  };
+  draw(); S.redrawStock = draw;
+};
+
+PAGES.requests = async () => {
+  const d = await refreshDash();
+  const rows = d.requests.filter(r => S.reqFilter === 'all' || r.status === 'open');
+  $('#main').innerHTML = head('Blood requests', 'Requests raised at your hospital, and open requests nearby.', '<button class="btn p" data-a="newreq">Post a blood request</button>') +
+    '<div class="chips" style="margin-bottom:12px">' + [['open', 'Open'], ['all', 'All (last 7 days)']].map(c => '<button class="chip' + (S.reqFilter === c[0] ? ' on' : '') + '" data-a="reqfilter" data-v="' + c[0] + '">' + c[1] + '</button>').join('') + '</div>' +
+    '<div class="card" style="margin-bottom:14px"><div class="tw"><table><thead><tr><th>Patient</th><th>Need</th><th>Urgency</th><th>Status</th><th>Received</th><th>Donors</th><th>Requester</th><th>Posted</th><th></th></tr></thead><tbody>' +
+    (rows.length ? rows.map(r => '<tr><td><b>' + esc(r.patient) + '</b></td><td><span class="tag bg">' + esc(r.bg) + '</span> ' + r.units + ' × ' + esc(r.comp) + '</td><td>' + urgTag(r.urgency) + '</td><td><span class="tag ' + (r.status === 'open' ? 'warn' : r.status === 'fulfilled' ? 'ok' : '') + '">' + esc(r.status) + '</span></td>' +
+      '<td>' + r.received + '/' + r.units + '</td><td>' + r.responders + '</td><td>' + esc(r.contactName || '-') + '<div class="xs muted">' + esc(r.contact || '') + '</div></td><td class="xs muted">' + ago(r.created) + '</td>' +
+      '<td class="right" style="white-space:nowrap">' + (r.status === 'open' ? '<button class="btn s" data-a="reqset" data-id="' + r.id + '" data-s="fulfilled">Fulfilled</button> <button class="btn s d" data-a="reqset" data-id="' + r.id + '" data-s="closed">Close</button>' : '') + '</td></tr>').join('') : '<tr><td colspan="9" class="muted c" style="padding:24px">No requests.</td></tr>') + '</tbody></table></div></div>' +
+    '<div class="card"><h2>Open requests within 25 km</h2><div class="tw"><table><thead><tr><th>Need</th><th>Hospital</th><th>Distance</th><th>Urgency</th><th>Posted</th></tr></thead><tbody>' +
+    (d.nearby.length ? d.nearby.map(r => '<tr><td><span class="tag bg">' + esc(r.bg) + '</span> ' + r.units + ' unit' + (r.units > 1 ? 's' : '') + '</td><td>' + esc(r.hospital) + '</td><td>' + r.km + ' km</td><td>' + urgTag(r.urgency) + '</td><td class="xs muted">' + ago(r.created) + '</td></tr>').join('') : '<tr><td colspan="5" class="muted c" style="padding:18px">Nothing nearby right now.</td></tr>') + '</tbody></table></div></div>';
+};
+
+PAGES.donors = async () => {
+  await refreshDash();
+  const f = S.f;
+  $('#main').innerHTML = head('Donors', 'Registered donors around your hospital. Phone numbers stay private: reach donors with an invitation, which appears as a notification in their app.',
+    '<button class="btn" data-a="exportdonors">Export CSV</button><button class="btn p" data-a="invitesel">Invite selected</button>') +
+    '<div class="card" style="margin-bottom:14px"><div class="row" style="gap:14px;align-items:flex-end">' +
+    '<label style="margin:0">Within<select id="f-radius">' + [10, 25, 50, 100, 250].map(r => '<option value="' + r + '"' + (+f.radius === r ? ' selected' : '') + '>' + r + ' km</option>').join('') + '</select></label>' +
+    '<label style="margin:0">Blood group<select id="f-bg"><option value="">Any</option>' + BGS.map(g => '<option' + (f.bg === g ? ' selected' : '') + '>' + g + '</option>').join('') + '</select></label>' +
+    '<label style="margin:0">Search<input id="f-q" placeholder="Name, area or city" value="' + esc(f.q) + '"></label>' +
+    '<label style="margin:0;display:flex;gap:6px;align-items:center"><input type="checkbox" id="f-ver" style="width:auto;margin:0"' + (f.verified ? ' checked' : '') + '> ID verified</label>' +
+    '<label style="margin:0;display:flex;gap:6px;align-items:center"><input type="checkbox" id="f-av" style="width:auto;margin:0"' + (f.available ? ' checked' : '') + '> Available now</label>' +
+    '<button class="btn p" data-a="donorsload">Apply</button></div></div><div id="dl"><p class="muted">Loading donors...</p></div>';
+  await loadDonors();
+};
+async function loadDonors() {
+  const f = S.f, qs = new URLSearchParams({ radius: f.radius, bg: f.bg, q: f.q, verified: f.verified ? '1' : '', available: f.available ? '1' : '' });
+  const r = await api('GET', '/hospital/donors?' + qs); S.donors = r; S.sel = new Set();
+  $('#dl').innerHTML = '<div class="card" style="margin-bottom:14px"><div class="row" style="gap:8px"><b>' + r.total + ' donors</b><span class="muted sm">· available now:</span>' + BGS.map(g => '<span class="chip">' + g + ' <b>' + r.availableByGroup[g] + '</b></span>').join('') + '</div></div>' +
+    '<div class="card"><div class="tw"><table><thead><tr><th><input type="checkbox" id="selall"></th><th>Name</th><th>Group</th><th>Area</th><th>Distance</th><th>Status</th><th>Can donate</th><th>Donations</th><th>Last donated</th><th>ID</th></tr></thead><tbody>' +
+    (r.items.length ? r.items.map(d => '<tr><td><input type="checkbox" class="sel" data-id="' + d.id + '"></td><td><b>' + esc(d.name) + '</b>' + (d.night ? ' <span class="xs muted">· night ok</span>' : '') + '</td><td><span class="tag bg">' + esc(d.bg) + '</span></td><td>' + esc(d.area || d.city) + '<div class="xs muted">' + esc(d.city) + '</div></td>' +
+      '<td>' + (d.km == null ? '-' : d.km + ' km') + '</td><td><span class="tag ' + (d.listed ? 'ok' : d.online ? 'warn' : '') + '">' + (d.listed ? 'Available' : d.online ? 'Online' : 'Offline') + '</span></td>' +
+      '<td>' + (d.eligible ? '<span class="tag ok">Yes</span>' : '<span class="tag warn">From ' + fd(d.nextEligible) + '</span>') + '</td><td>' + d.donations + '</td><td class="xs">' + fd(d.last) + '</td><td>' + (d.verified ? '<span class="tag ok">Verified</span>' : '<span class="tag">-</span>') + '</td></tr>').join('') : '<tr><td colspan="10" class="muted c" style="padding:24px">No donors match. Try a wider distance.</td></tr>') + '</tbody></table></div></div>';
+  $('#selall').onchange = e => document.querySelectorAll('.sel').forEach(c => { c.checked = e.target.checked; e.target.checked ? S.sel.add(c.dataset.id) : S.sel.delete(c.dataset.id); });
+  document.querySelectorAll('.sel').forEach(c => c.onchange = () => c.checked ? S.sel.add(c.dataset.id) : S.sel.delete(c.dataset.id));
+}
+
+PAGES.camps = async () => {
+  const d = await refreshDash(), today = new Date().toISOString().slice(0, 10);
+  const row = c => '<tr><td><b>' + esc(c.title) + '</b><div class="xs muted">' + esc(c.venue) + '</div></td><td>' + fd(c.date) + '<div class="xs muted">' + esc(c.time) + '</div></td><td style="min-width:150px"><div class="bar"><i style="width:' + (c.slots ? Math.min(100, c.regCount / c.slots * 100) : 0) + '%"></i></div><div class="xs muted">' + c.regCount + ' of ' + c.slots + ' seats</div></td>' +
+    '<td><span class="tag ' + (c.status === 'cancelled' ? '' : 'ok') + '">' + (c.status === 'cancelled' ? 'Cancelled' : c.date < today ? 'Done' : 'Open') + '</span></td><td class="right" style="white-space:nowrap">' +
+    '<button class="btn s" data-a="regs" data-id="' + c.id + '">Registrants</button> ' + (c.status !== 'cancelled' ? '<button class="btn s" data-a="campinvite" data-id="' + c.id + '">Invite donors</button> <button class="btn s" data-a="campedit" data-id="' + c.id + '">Edit</button> <button class="btn s d" data-a="campcancel" data-id="' + c.id + '">Cancel</button>' : '') + '</td></tr>';
+  const up = d.camps.filter(c => c.date >= today && c.status !== 'cancelled'), past = d.camps.filter(c => c.date < today || c.status === 'cancelled');
+  $('#main').innerHTML = head('Blood camps', 'Create camps, invite nearby donors, and record donations on camp day.', '<button class="btn p" data-a="newcamp">Create a camp</button>') +
+    '<div class="card" style="margin-bottom:14px"><h2>Upcoming</h2><div class="tw"><table><thead><tr><th>Camp</th><th>Date</th><th>Seats</th><th>Status</th><th></th></tr></thead><tbody>' + (up.length ? up.map(row).join('') : '<tr><td colspan="5" class="muted c" style="padding:22px">No upcoming camps.</td></tr>') + '</tbody></table></div></div>' +
+    (past.length ? '<div class="card"><h2>Past and cancelled</h2><div class="tw"><table><thead><tr><th>Camp</th><th>Date</th><th>Seats</th><th>Status</th><th></th></tr></thead><tbody>' + past.map(row).join('') + '</tbody></table></div></div>' : '');
+};
+
+let LL = null;
+function loadLeaflet() { return new Promise((ok, no) => { if (window.L) return ok(); const s = document.createElement('script'); s.src = '/admin/leaflet.js'; s.onload = ok; s.onerror = () => no(new Error('The map failed to load')); document.head.appendChild(s); }); }
+PAGES.banks = async () => {
+  const [d, bj] = await Promise.all([refreshDash(), api('GET', '/hospital/banks')]); await loadLeaflet();
+  const banks = bj.items;
+  $('#main').innerHTML = head('Blood bank map', 'Every blood bank on LifeLink with the units it has. Click a marker or a row.') + '<div class="grid" style="grid-template-columns:2fr 1fr;align-items:start"><div id="map"></div><div class="card" style="max-height:520px;overflow:auto"><h2>Nearest first</h2>' +
+    banks.map(b => '<button data-a="mapfocus" data-id="' + b.id + '" style="width:100%;text-align:left;background:none;border:0;border-top:1px solid var(--line);padding:10px 0"><b>' + esc(b.name) + '</b>' + (b.mine ? ' <span class="tag bg">You</span>' : '') + '<div class="xs muted">' + esc(b.city) + ' · ' + b.km + ' km · ' + BGS.reduce((a, g) => a + (b.stock[g] || 0), 0) + ' units</div></button>').join('') + '</div></div>';
+  const map = L.map('map').setView([d.bank.lat, d.bank.lng], 11); L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom: 19, attribution: '© OpenStreetMap contributors' }).addTo(map);
+  const pop = b => '<div style="min-width:230px"><b>' + esc(b.name) + '</b><div class="xs" style="color:#6B7089">' + esc(b.address) + '<br>' + esc(b.hours || '') + (b.phone ? ' · ' + esc(b.phone) : '') + '</div>' +
+    '<div style="display:grid;grid-template-columns:repeat(4,1fr);gap:4px;margin-top:8px">' + BGS.map(g => '<div style="text-align:center;border-radius:8px;padding:3px;background:' + ((b.stock[g] || 0) < 5 ? '#FDECEC' : '#E3F3EB') + '"><b style="font-size:11px">' + g + '</b><br>' + (b.stock[g] || 0) + '</div>').join('') + '</div></div>';
+  S.markers = {}; banks.forEach(b => { const m = L.marker([b.lat, b.lng], { icon: L.divIcon({ className: '', html: '<div class="pin' + (b.mine ? ' me' : '') + '">+</div>', iconSize: [30, 30], iconAnchor: [15, 15] }) }).addTo(map).bindPopup(pop(b)); S.markers[b.id] = m; });
+  S.map = map; setTimeout(() => map.invalidateSize(), 100);
+};
+
+PAGES.donations = async () => {
+  const r = await api('GET', '/hospital/donations');
+  $('#main').innerHTML = head('Donations', 'Donations recorded at your hospital (camp check-ins and donors who helped your requests).', '<button class="btn" data-a="exportdonations">Export CSV</button>') +
+    '<div class="card"><div class="tw"><table><thead><tr><th>Date</th><th>Donor</th><th>Group</th><th>Type</th><th>Units</th><th>For</th></tr></thead><tbody>' +
+    (r.items.length ? r.items.map(d => '<tr><td>' + fdt(d.t) + '</td><td>' + esc(d.donor) + '</td><td><span class="tag bg">' + esc(d.bg) + '</span></td><td>' + esc(d.type) + '</td><td>' + d.units + '</td><td>' + esc(d.source) + '</td></tr>').join('') : '<tr><td colspan="6" class="muted c" style="padding:24px">No donations recorded yet. They appear when you mark camp donors as donated, or when donors complete your requests.</td></tr>') + '</tbody></table></div></div>';
+  S.donationRows = r.items;
+};
+
+PAGES.profile = async () => {
+  const d = await refreshDash(), h = d.hospital;
+  $('#main').innerHTML = head('Hospital profile', 'These details appear on the public blood bank listing and are used for directions.') +
+    '<div class="grid g2"><div class="card"><h2>Details</h2><div class="kv"><span>Name</span><span>' + esc(h.name) + '</span><span>Type</span><span>' + esc(h.type) + '</span><span>Registration no.</span><span>' + esc(h.regNo) + '</span><span>Phone</span><span>' + esc(h.phone) + '</span><span>Hours</span><span>' + esc(h.hours || '-') + '</span><span>Address</span><span>' + esc(h.address) + ', ' + esc(h.city) + '</span><span>Map position</span><span>' + (+h.lat).toFixed(5) + ', ' + (+h.lng).toFixed(5) + '</span><span>Status</span><span><span class="tag ok">Approved</span></span></div>' +
+    '<div class="acts"><button class="btn p" data-a="editprofile">Edit details</button></div></div>' +
+    '<div class="card"><h2>Your account</h2><div class="kv"><span>Manager</span><span>' + esc(S.me.profile.name || '-') + '</span><span>Mobile</span><span>' + esc(S.me.profile.phone) + '</span></div><p class="xs muted" style="margin-top:12px">Sign-in uses a one-time code sent to this mobile number. To change the manager number, contact the LifeLink team.</p></div></div>';
+};
+
+/* ================= actions ================= */
+const A = {
+  goto: d => go(d.p),
+  stk: guard(async d => { const r = await api('PATCH', '/hospital/stock', { group: d.g, delta: +d.d }); S.dash.bank = r.bank; S.redrawStock(); }),
+  stkset: guard(async d => { const v = $('#set-' + d.g.replace('+', 'p').replace('-', 'm')).value; const r = await api('PATCH', '/hospital/stock', { group: d.g, set: +v, rev: S.dash.bank.rev }).catch(e => { if (e.status === 409 && e.data.bank) { S.dash.bank = e.data.bank; S.redrawStock(); } throw e; }); S.dash.bank = r.bank; S.redrawStock(); toast('Saved'); }),
+  exportstock: () => csv('blood-stock.csv', [['Blood group', 'Units']].concat(BGS.map(g => [g, S.dash.bank.stock[g] || 0]))),
+  reqfilter: d => { S.reqFilter = d.v; PAGES.requests(); },
+  reqset: guard(async d => { await api('PATCH', '/hospital/requests/' + d.id, { status: d.s }); toast(d.s === 'fulfilled' ? 'Marked as fulfilled' : 'Request closed'); PAGES.requests(); }),
+  newreq: () => { const b = S.dash.bank; modal('<h2>Post a blood request</h2><p class="muted sm" style="margin-bottom:12px">Compatible, verified donors near ' + esc(b.name) + ' are alerted straight away.</p><form id="qf" class="fields"><label>Patient name<input name="patient" required></label>' +
+    '<label>Blood group needed<select name="bg">' + BGS.map(g => '<option>' + g + '</option>').join('') + '</select></label><label>Units<input name="units" type="number" min="1" max="10" value="1"></label>' +
+    '<label>Urgency<select name="urgency"><option value="critical">Critical (within hours)</option><option value="urgent" selected>Urgent (today)</option><option value="planned">Planned</option></select></label>' +
+    '<label>Contact phone<input name="phone" value="' + esc((b.phone || '').replace(/^\+91/, '')) + '" required></label><label>Component<select name="comp"><option>Whole blood</option><option>Red cells</option><option>Platelets</option><option>Plasma</option></select></label>' +
+    '<label style="grid-column:1/-1">Note (optional)<input name="note" maxlength="300"></label></form><div class="acts"><button class="btn" data-a="close">Cancel</button><button class="btn p" data-a="sendreq">Send alert</button></div>'); },
+  sendreq: guard(async () => { const f = $('#qf'); if (!f.reportValidity()) return; const v = formVals(f), b = S.dash.bank;
+    const r = await api('POST', '/requests', { patient: v.patient, bg: v.bg, units: +v.units, urgency: v.urgency, comp: v.comp, hospital: b.name, city: b.city, phone: v.phone, note: v.note, cname: S.me.profile.name || b.name, lat: b.lat, lng: b.lng });
+    closeModal(); toast('Alert sent to ' + r.alerted + ' compatible donor' + (r.alerted === 1 ? '' : 's')); PAGES.requests(); }),
+  close: closeModal,
+  donorsload: guard(async () => { S.f = { radius: +$('#f-radius').value, bg: $('#f-bg').value, q: $('#f-q').value.trim(), verified: $('#f-ver').checked, available: $('#f-av').checked }; await loadDonors(); }),
+  exportdonors: () => { if (!S.donors) return; csv('donors.csv', [['Name', 'Blood group', 'Area', 'City', 'Distance km', 'Available now', 'Eligible', 'Donations', 'Last donated', 'ID verified']].concat(S.donors.items.map(d => [d.name, d.bg, d.area, d.city, d.km == null ? '' : d.km, d.listed ? 'yes' : 'no', d.eligible ? 'yes' : 'from ' + d.nextEligible, d.donations, d.last, d.verified ? 'yes' : 'no']))); },
+  invitesel: () => { if (!S.sel.size) return toast('Tick the donors you want to invite first'); modal('<h2>Invite ' + S.sel.size + ' donor' + (S.sel.size === 1 ? '' : 's') + '</h2><p class="muted sm" style="margin-bottom:10px">They receive a notification in the LifeLink app, in their language.</p><label>Message (optional)<textarea id="im" rows="3" maxlength="200" placeholder="e.g. O- and B- needed urgently at our blood bank"></textarea></label><div class="acts"><button class="btn" data-a="close">Cancel</button><button class="btn p" data-a="sendinvite">Send invitations</button></div>'); },
+  sendinvite: guard(async () => { const r = await api('POST', '/hospital/invite', { userIds: [...S.sel], message: $('#im').value.trim() }); closeModal(); toast(r.sent + ' invitation' + (r.sent === 1 ? '' : 's') + ' sent' + (r.skipped ? ' (' + r.skipped + ' skipped: invited recently)' : '')); }),
+  newcamp: () => campForm(), campedit: d => campForm(S.dash.camps.find(c => c.id === d.id)),
+  savecamp: guard(async d => { const f = $('#cf'); if (!f.reportValidity()) return; const v = formVals(f), body = { title: v.title, date: v.date, time: v.time, venue: v.venue, slots: +v.slots };
+    if (d.id) await api('PATCH', '/hospital/camps/' + d.id, body); else await api('POST', '/hospital/camps', body); closeModal(); toast(d.id ? 'Camp updated' : 'Camp created. Nearby donors can now see it.'); PAGES.camps(); }),
+  campcancel: guard(async d => { if (!confirm('Cancel this camp? Everyone who registered will be notified.')) return; await api('PATCH', '/hospital/camps/' + d.id, { status: 'cancelled' }); toast('Camp cancelled'); PAGES.camps(); }),
+  campinvite: d => modal('<h2>Invite nearby donors to this camp</h2><p class="muted sm" style="margin-bottom:10px">Available donors who have not registered yet receive a notification with the camp details.</p><label>Within<select id="cr"><option value="10">10 km</option><option value="25" selected>25 km</option><option value="50">50 km</option><option value="100">100 km</option></select></label><div class="acts"><button class="btn" data-a="close">Cancel</button><button class="btn p" data-a="sendcampinvite" data-id="' + d.id + '">Send invitations</button></div>'),
+  sendcampinvite: guard(async d => { const r = await api('POST', '/hospital/camps/' + d.id + '/invite', { radiusKm: +$('#cr').value }); closeModal(); toast(r.sent + ' donors invited (' + r.candidates + ' nearby)'); }),
+  regs: guard(async d => { const r = await api('GET', '/hospital/camps/' + d.id + '/registrations'); S.regs = r;
+    modal('<div class="row between"><div><h2>' + esc(r.camp.title) + '</h2><p class="muted sm">' + fd(r.camp.date) + ' · ' + r.items.length + ' of ' + r.camp.slots + ' registered · ' + r.items.filter(x => x.attended).length + ' donated</p></div><button class="btn s" data-a="exportregs">Export CSV</button></div>' +
+      '<div class="tw" style="margin-top:10px"><table><thead><tr><th>Donor</th><th>Group</th><th>Phone</th><th>ID</th><th>Last donated</th><th></th></tr></thead><tbody>' +
+      (r.items.length ? r.items.map(u => '<tr><td><b>' + esc(u.name || 'Donor') + '</b></td><td><span class="tag bg">' + esc(u.bg) + '</span></td><td>' + esc(u.phone) + '</td><td>' + (u.verified ? '<span class="tag ok">Verified</span>' : '-') + '</td><td class="xs">' + fd(u.last) + '</td>' +
+        '<td class="right">' + (u.attended ? '<span class="tag ok">Donated</span>' : r.camp.status === 'cancelled' ? '' : '<button class="btn s p" data-a="checkin" data-camp="' + d.id + '" data-id="' + u.id + '">Mark donated</button>') + '</td></tr>').join('') : '<tr><td colspan="6" class="muted c" style="padding:20px">Nobody has registered yet.</td></tr>') + '</tbody></table></div><div class="acts"><button class="btn" data-a="close">Close</button></div>', true); }),
+  checkin: guard(async d => { const r = await api('POST', '/hospital/camps/' + d.camp + '/checkin', { userId: d.id }); S.dash.bank = r.bank; toast('Donation recorded. Stock updated.'); A.regs({ id: d.camp }); }),
+  exportregs: () => csv('camp-registrants.csv', [['Name', 'Blood group', 'Phone', 'ID verified', 'Donated at camp']].concat(S.regs.items.map(u => [u.name, u.bg, u.phone, u.verified ? 'yes' : 'no', u.attended ? 'yes' : 'no']))),
+  mapfocus: d => { const m = S.markers[d.id]; if (m) { S.map.setView(m.getLatLng(), 14); m.openPopup(); } },
+  exportdonations: () => csv('donations.csv', [['Date', 'Donor', 'Blood group', 'Type', 'Units', 'For']].concat(S.donationRows.map(d => [new Date(d.t).toISOString(), d.donor, d.bg, d.type, d.units, d.source]))),
+  editprofile: () => { modal('<h2>Edit hospital details</h2>' + regForm(S.me, 'edit'), true); bindReg(S.me, 'edit'); }
+};
+function campForm(c) {
+  const d = new Date(Date.now() + 7 * 864e5).toISOString().slice(0, 10);
+  modal('<h2>' + (c ? 'Edit camp' : 'Create a blood camp') + '</h2><form id="cf" class="fields"><label style="grid-column:1/-1">Camp title<input name="title" required value="' + esc(c ? c.title : '') + '" placeholder="e.g. Annual blood donation drive"></label>' +
+    '<label>Date<input name="date" type="date" required min="' + new Date().toISOString().slice(0, 10) + '" value="' + (c ? c.date : d) + '"></label><label>Time<input name="time" value="' + esc(c ? c.time : '9:00 AM - 3:00 PM') + '"></label>' +
+    '<label>Venue<input name="venue" value="' + esc(c ? c.venue : (S.dash.bank.address || '')) + '"></label><label>Seats<input name="slots" type="number" min="1" max="5000" value="' + (c ? c.slots : 50) + '"></label></form>' +
+    '<p class="xs muted">The camp appears on the map for nearby users, who can register from the app. After saving, use <b>Invite donors</b> to notify available donors.</p><div class="acts"><button class="btn" data-a="close">Cancel</button><button class="btn p" data-a="savecamp"' + (c ? ' data-id="' + c.id + '"' : '') + '>' + (c ? 'Save' : 'Create camp') + '</button></div>');
+}
+document.addEventListener('click', e => { const el = e.target.closest('[data-a]'); if (!el) return; const f = A[el.dataset.a]; if (f) { e.preventDefault(); f(el.dataset); } });
+
+/* ================= start ================= */
+async function boot() {
+  if (!S.token) return loginView();
+  try {
+    S.me = (await api('GET', '/hospital/me')).me;
+    if ((S.me.role !== 'hospital') || !S.me.hospital || S.me.hospital.status !== 'approved') return gateView();
+    S.page = S.page || 'overview'; shell(); await PAGES[S.page]();
+  } catch (e) { if (S.token) toast(e.message); loginView(); }
+}
+function render() { S.token ? boot() : loginView(); }
+setInterval(() => { if (S.me && S.me.hospital && S.me.hospital.status === 'approved' && !document.hidden && !$('#modal') && ['overview', 'requests'].includes(S.page)) PAGES[S.page]().catch(() => {}); }, 30000);
+boot();
+</script></body></html>

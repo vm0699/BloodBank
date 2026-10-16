@@ -60,3 +60,11 @@ test('admin system check reports database, SMS and DigiLocker, and is admin-only
   assert.equal(r.database, 'file'); assert.equal(r.digilocker.provider, 'mock'); assert.equal(r.sms.provider, 'console'); assert.equal(r.devOtp, true);
   assert.ok(!JSON.stringify(r).includes('correct-horse-battery'));
 });
+
+test('landing page links to both dashboards; the hospital dashboard is served with the same protections as the admin portal', async () => {
+  const home = await (await fetch(base + '/')).text();
+  assert.match(home, /href="\/hospital"/); assert.match(home, /href="\/admin"/);
+  const h = await fetch(base + '/hospital');
+  assert.equal(h.status, 200); assert.match(await h.text(), /LifeLink Hospital Dashboard/);
+  assert.match(h.headers.get('content-security-policy'), /frame-ancestors 'none'/); assert.equal(h.headers.get('x-frame-options'), 'DENY');
+});

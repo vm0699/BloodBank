@@ -323,3 +323,44 @@ test('temporary Aadhaar-number verification: format-checked, last 4 only, one nu
   assert.equal((await call('POST', '/api/verify/aadhaar', { number: aad.withCheck('39876543210') }, u2.token)).status, 403);  // switched off
   store.doc('config', {}).aadhaarEntry = true;
 });
+
+test('hospital web dashboard API: donor list (no phones), invitations, camp check-in adds stock, bank map, donation log', async () => {
+  const stockBefore = (await call('GET', '/api/hospital/dashboard', null, hosp.token)).bank.stock['B-'] || 0;
+  const donorsB = Array.from({ length: 3 }, () => crowdUser('B-', { name: 'Web Donor', city: 'Chennai', area: 'Adyar' }));
+  const stranger = crowdUser('O+', { donor: false, available: false, presence: null });
+
+  // donor list
+  assert.equal((await call('GET', '/api/hospital/donors', null, stranger.token)).status, 403);               // only approved hospitals
+  const list = await call('GET', '/api/hospital/donors?radius=30&bg=B-', null, hosp.token);
+  assert.equal(list.status, 200); assert.ok(list.items.length >= 3);
+  assert.ok(list.items.every(d => d.bg === 'B-' && d.phone === undefined && typeof d.km === 'number'));      // phone numbers never in the list
+  assert.ok(list.availableByGroup['B-'] >= 3);
+  assert.ok(store.list('audit').some(a => a.action === 'hospital.donors.view'));                              // viewing the list is logged
+
+  // invitations: reach the donor, once per 6 hours, hospital-only
+  const ids = donorsB.map(d => d.id);
+  const inv = await call('POST', '/api/hospital/invite', { userIds: ids, message: 'O- and B- needed urgently' }, hosp.token);
+  assert.equal(inv.sent, 3);
+  assert.ok(store.filter('notifications', n => n.userId === ids[0] && n.type === 'hospital_invite').length === 1);
+  assert.equal((await call('POST', '/api/hospital/invite', { userIds: ids }, hosp.token)).sent, 0);          // already invited
+  assert.equal((await call('POST', '/api/hospital/invite', { userIds: ids }, stranger.token)).status, 403);
+
+  // camp check-in
+  const camp = await call('POST', '/api/hospital/camps', { title: 'Check-in Camp', date: core.dayKey(Date.now() + 86400e3), slots: 20, venue: 'Hall' }, hosp.token);
+  assert.equal((await call('POST', '/api/camps/' + camp.camp.id + '/register', {}, donorsB[0].token)).status, 200);
+  const ci = await call('POST', '/api/hospital/camps/' + camp.camp.id + '/checkin', { userId: donorsB[0].id }, hosp.token);
+  assert.equal(ci.status, 200); assert.equal(ci.bank.stock['B-'], stockBefore + 1);                           // stock went up by the donated unit
+  assert.equal(store.get('users', donorsB[0].id).last, core.dayKey(Date.now()));                             // cooldown started
+  assert.equal((await call('POST', '/api/hospital/camps/' + camp.camp.id + '/checkin', { userId: donorsB[0].id }, hosp.token)).status, 409);   // not twice
+  assert.equal((await call('POST', '/api/hospital/camps/' + camp.camp.id + '/checkin', { userId: donorsB[1].id }, hosp.token)).status, 400);   // not registered
+  const regs = await call('GET', '/api/hospital/camps/' + camp.camp.id + '/registrations', null, hosp.token);
+  assert.equal(regs.items[0].attended, true);
+  const campInv = await call('POST', '/api/hospital/camps/' + camp.camp.id + '/invite', { radiusKm: 30 }, hosp.token);
+  assert.ok(campInv.candidates >= 1);
+
+  // bank map + donation log
+  const banks = await call('GET', '/api/hospital/banks', null, hosp.token);
+  assert.ok(banks.items.some(b => b.mine) && banks.items.every(b => b.stock && typeof b.stock['O+'] === 'number'));
+  const dons = await call('GET', '/api/hospital/donations', null, hosp.token);
+  assert.ok(dons.items.some(d => /Check-in Camp/.test(d.source)));
+});
