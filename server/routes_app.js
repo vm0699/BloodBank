@@ -228,7 +228,7 @@ module.exports = function register(R, { store, core, dl, env, dataDir, limiter }
   R.add('PATCH', '/api/requests/:id', { auth: 'user' }, ({ user, params, body }) => {
     const r = mustReq(params.id); if (r.userId !== user.id) throw new HttpError(403, 'Not your request');
     const s = oneOf(body.status, ['fulfilled', 'closed']); if (!s) throw bad('Bad status');
-    r.status = s; if (s === 'fulfilled') r.received = r.units; store.save();
+    r.status = s; r.manual = true; if (s === 'fulfilled') r.received = r.units; store.save();
     return { request: core.reqView(r, user) };
   });
   R.add('POST', '/api/requests/:id/alert-wider', { auth: 'user' }, ({ user, params }) => {
@@ -261,7 +261,7 @@ module.exports = function register(R, { store, core, dl, env, dataDir, limiter }
   R.add('POST', '/api/requests/:id/donated', { auth: 'user' }, ({ user, params }) => {
     const r = mustReq(params.id), x = r.responses.find(y => y.donorId === user.id);
     if (!x || x.state !== 'accepted') throw bad('Your offer has not been accepted yet');
-    if (!core.confirmDonation(r, x)) throw bad('This request already has all the blood it needs. Thank you for stepping up!');
+    if (!core.confirmDonation(r, x, { extra: !!r.manual })) throw bad('This request already has all the blood it needs. Thank you for stepping up!');   // closed by hand: an accepted donor may still record a real donation
     return { request: core.reqView(r, user), me: core.userView(user) };
   });
   R.add('PATCH', '/api/requests/:id/responses/:rid', { auth: 'user' }, ({ user, params, body }) => {
@@ -279,7 +279,7 @@ module.exports = function register(R, { store, core, dl, env, dataDir, limiter }
       core.notify(x.donorId, 'offer_declined', { hospital: r.hospital }, { requestId: r.id });
     } else {
       if (!['accepted', 'offered'].includes(x.state)) throw bad('Cannot confirm now');
-      core.confirmDonation(r, x);
+      core.confirmDonation(r, x, { extra: true });          // the requester vouches that this donor donated, even if the request is already full or closed
     }
     return { request: core.reqView(r, user) };
   });

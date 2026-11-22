@@ -19,7 +19,7 @@ const DAY = 864e5, HOUR = 36e5;
 const CONFIG_DEFAULTS = {
   gapMen: 90, gapWomen: 120, minAge: 18, maxAge: 65, minWeight: 45,
   defaultRadiusKm: 10, alertMax: 12, alertRadiusKm: 15, presenceFreshMin: 30,
-  requestExpiryHours: 12, requestsPerHour: 5, maintenance: false, announcement: '',
+  requestExpiryHours: 12, donationCheckHours: 6, requestsPerHour: 5, maintenance: false, announcement: '',
   // Who counts as "verified": 'digilocker' = DigiLocker (or an admin override) with the Aadhaar card shared (always required);
   // verifyRequireLicence also demands a driving licence (default: optional). 'any' = any approved method.
   // verifyAllowSkip: onboarding offers "I only need to request blood" (they still cannot donate until verified).
@@ -104,6 +104,14 @@ function create(store, dataDir) {
     donation_received: {
       en: p => ['Donation received', p.name + ' donated for ' + p.patient + '. (' + p.received + ' of ' + p.units + ')'],
       ta: p => ['தானம் பெறப்பட்டது', p.name + ' தானம் செய்தார் - ' + p.patient + '. (' + p.received + ' / ' + p.units + ')']
+    },
+    donation_check: {
+      en: p => ['Did you donate?', 'If you gave blood for ' + p.patient + ' at ' + p.hospital + ', tap "I have donated" so your rest period starts.'],
+      ta: p => ['தானம் செய்தீர்களா?', p.hospital + ' - ' + p.patient + ' அவர்களுக்கு இரத்த தானம் செய்திருந்தால், "நான் தானம் செய்தேன்" என்பதைத் தொடவும்.']
+    },
+    donation_check_req: {
+      en: p => ['Did ' + p.name + ' donate?', 'Tap "Donated" on your request for ' + p.patient + ' so it is recorded and your request stays accurate.'],
+      ta: p => [p.name + ' தானம் செய்தாரா?', p.patient + ' கோரிக்கையில் "தானம் செய்தார்" என்பதைத் தொடவும்; பதிவு சரியாக இருக்கும்.']
     },
     verified: { en: () => ['You are verified', 'Your identity was verified. You can now appear as a donor.'], ta: () => ['சரிபார்க்கப்பட்டது', 'உங்கள் அடையாளம் சரிபார்க்கப்பட்டது. இனி நீங்கள் கொடையாளராக தோன்றலாம்.'] },
     verify_rejected: { en: p => ['Verification failed', p.reason || 'We could not verify your ID. Please try again.'], ta: p => ['சரிபார்ப்பு தோல்வி', p.reason || 'உங்கள் அடையாளத்தை சரிபார்க்க முடியவில்லை. மீண்டும் முயலவும்.'] },
@@ -211,19 +219,24 @@ function create(store, dataDir) {
     return cand.length;
   }
 
-  function confirmDonation(r, resp) {
+  // opt.extra: the request already has all its units, but the requester (or a requester who closed the request by hand)
+  // says this donor really donated - record the donation and start the donor's rest period without counting another unit.
+  function confirmDonation(r, resp, opt) {
     if (resp.state === 'confirmed') return false;
-    if ((r.received || 0) >= r.units) return false;            // enough units already confirmed: extra donors are thanked, not counted
+    const full = (r.received || 0) >= r.units;
+    if (full && !(opt && opt.extra)) return false;              // enough units already confirmed: extra donors are thanked, not counted
     resp.state = 'confirmed'; resp.at = Date.now();
-    r.received = Math.min(r.units, (r.received || 0) + 1);
+    if (!full) r.received = Math.min(r.units, (r.received || 0) + 1);
     const d = userById(resp.donorId);
     if (d) {
       store.insert('donations', { userId: d.id, t: Date.now(), place: r.hospital, type: r.comp, units: 1, forWho: r.patient, requestId: r.id });
       d.last = dayKey(new Date()); d.notified = Object.assign({}, d.notified, { eligibleOn: null });
       notify(d.id, 'donation_confirmed', { patient: r.patient }, { requestId: r.id });
     }
-    notify(r.userId, 'donation_received', { name: d ? shortName(d.name) : 'A donor', patient: r.patient, received: r.received, units: r.units }, { requestId: r.id });
-    if (r.received >= r.units) r.status = 'fulfilled';
+    if (!full) {
+      notify(r.userId, 'donation_received', { name: d ? shortName(d.name) : 'A donor', patient: r.patient, received: r.received, units: r.units }, { requestId: r.id });
+      if (r.received >= r.units) r.status = 'fulfilled';
+    }
     store.save();
     return true;
   }
@@ -237,6 +250,18 @@ function create(store, dataDir) {
         r.status = 'expired'; notify(r.userId, 'request_closed', { bg: r.bg, hospital: r.hospital }, { requestId: r.id });
       }
     });
+    // Accepted donors who never tapped "I have donated" (and requesters who never tapped "Donated"): ask both, twice at most,
+    // so the donation is recorded, the donor's rest period starts and the request shows the true count.
+    const chk = (c.donationCheckHours || 6) * HOUR;
+    store.list('requests').forEach(r => (r.responses || []).forEach(x => {
+      if (x.state !== 'accepted') return;
+      const stage = !x.check1 && now > x.at + chk ? 1 : !x.check2 && now > x.at + Math.max(24 * HOUR, 2 * chk) ? 2 : 0;
+      if (!stage) return;
+      x[stage === 1 ? 'check1' : 'check2'] = now;
+      const d = userById(x.donorId);
+      notify(x.donorId, 'donation_check', { patient: r.patient, hospital: r.hospital }, { requestId: r.id });
+      notify(r.userId, 'donation_check_req', { name: d ? shortName(d.name) : 'The donor', patient: r.patient }, { requestId: r.id });
+    }));
     // "you can donate again" - once per cooldown
     users().forEach(u => {
       if (u.status === 'suspended' || !u.last) return;

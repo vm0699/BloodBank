@@ -364,3 +364,33 @@ test('hospital web dashboard API: donor list (no phones), invitations, camp chec
   const dons = await call('GET', '/api/hospital/donations', null, hosp.token);
   assert.ok(dons.items.some(d => /Check-in Camp/.test(d.source)));
 });
+
+test('marking donations: requester can confirm a donor on a full/closed request, donors can self-record after a manual close, and both are reminded once', async () => {
+  const requester = crowdUser('A+', { donor: false, available: false });
+  const [d1, d2, d3] = [crowdUser('O+'), crowdUser('O+'), crowdUser('O+')];
+  const mk = async units => (await call('POST', '/api/requests', { patient: 'Mark Patient', bg: 'A+', units, urgency: 'urgent', hospital: 'Marking General', phone: '9811100088' }, requester.token)).request.id;
+  const offerAccept = async (rid, d) => {
+    await call('POST', '/api/requests/' + rid + '/offer', { accepted: true }, d.token);
+    const v = await call('GET', '/api/requests/' + rid, null, requester.token), x = v.request.responses.find(r => r.donorId === d.id);
+    assert.equal((await call('PATCH', '/api/requests/' + rid + '/responses/' + x.id, { state: 'accepted' }, requester.token)).status, 200); return x.id;
+  };
+  // 1. one unit, two accepted donors: the first self-reports, the requester confirms the second anyway
+  const r1 = await mk(1), x1 = await offerAccept(r1, d1), x2 = await offerAccept(r1, d2);
+  assert.equal((await call('POST', '/api/requests/' + r1 + '/donated', {}, d1.token)).status, 200);
+  assert.equal((await call('POST', '/api/requests/' + r1 + '/donated', {}, d2.token)).status, 400);                 // a donor cannot add an extra unit by himself
+  assert.equal((await call('PATCH', '/api/requests/' + r1 + '/responses/' + x2, { state: 'confirmed' }, requester.token)).status, 200);
+  assert.equal(store.get('users', d2.id).last, core.dayKey(Date.now()));                                           // rest period started for the second donor too
+  const v1 = await call('GET', '/api/requests/' + r1, null, requester.token); assert.equal(v1.request.received, 1);   // but only one unit counted
+  // 2. requester closes by hand: the accepted donor can still record the donation
+  const r2 = await mk(1); await offerAccept(r2, d3);
+  assert.equal((await call('PATCH', '/api/requests/' + r2, { status: 'fulfilled' }, requester.token)).status, 200);
+  assert.equal((await call('POST', '/api/requests/' + r2 + '/donated', {}, d3.token)).status, 200);
+  assert.equal(store.get('users', d3.id).last, core.dayKey(Date.now()));
+  // 3. reminders: after the check delay both get one notification, and a second job run adds none
+  const d4 = crowdUser('O+'), r3 = await mk(1), x4 = await offerAccept(r3, d4);
+  const req = store.get('requests', r3), resp = req.responses.find(x => x.id === x4); resp.at = Date.now() - 7 * 36e5;
+  core.jobs(); core.jobs();
+  const dn = await call('GET', '/api/notifications', null, d4.token), rn = await call('GET', '/api/notifications', null, requester.token);
+  assert.equal(dn.items.filter(n => n.type === 'donation_check').length, 1);
+  assert.equal(rn.items.filter(n => n.type === 'donation_check_req' && n.data.requestId === r3).length, 1);
+});
