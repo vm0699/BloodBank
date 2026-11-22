@@ -64,6 +64,8 @@ const CITIES = [['Chennai', 13.0827, 80.2707], ['Kattankulathur', 12.8231, 80.04
   ['Bengaluru', 12.9716, 77.5946], ['Hyderabad', 17.385, 78.4867], ['Kochi', 9.9312, 76.2673]];
 const $ = s => document.querySelector(s);
 const esc = s => String(s == null ? '' : s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+window.MBX = { token: '', style: '' }; fetch('/api/config').then(r => r.json()).then(c => { if (c.mapboxToken) window.MBX = { token: c.mapboxToken, style: c.mapboxStyle || '' }; }).catch(() => {});
+const mbxTiles = () => { const t = window.MBX.token; return t ? L.tileLayer('https://api.mapbox.com/styles/v1/' + (window.MBX.style || 'mapbox/streets-v12') + '/tiles/512/{z}/{x}/{y}@2x?access_token=' + t, { tileSize: 512, zoomOffset: -1, maxZoom: 20, attribution: '© Mapbox © OpenStreetMap' }) : L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom: 19, attribution: '© OpenStreetMap contributors' }); };
 const S = { token: localStorage.getItem('llh.token') || '', me: null, page: 'overview', dash: null, donors: null, camps: null, f: { radius: 25, bg: '', verified: false, available: false, q: '' }, sel: new Set(), reqFilter: 'open' };
 let tT = 0; const toast = m => { const t = $('#toast'); t.textContent = m; t.classList.add('on'); clearTimeout(tT); tT = setTimeout(() => t.classList.remove('on'), 3200); };
 const fdt = t => t ? new Date(t).toLocaleString([], { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' }) : '-';
@@ -120,7 +122,7 @@ function regForm(me, mode) {
     '<label>Registration / licence number<input name="regNo" value="' + esc(h.regNo || '') + '" required></label>' +
     '<label>Hospital phone<input name="phone" value="' + esc((h.phone || me.profile.phone || '').replace(/^\+91/, '')) + '" required></label>' +
     '<label>Opening hours<input name="hours" placeholder="e.g. 24 hours" value="' + esc(h.hours || '') + '"></label>' +
-    '<label style="grid-column:1/-1">Full address<input name="address" value="' + esc(h.address || '') + '" required></label>' +
+    '<label style="grid-column:1/-1">Full address (start typing to pick the exact place)<input name="address" list="addrs" autocomplete="off" value="' + esc(h.address || '') + '" required><datalist id="addrs"></datalist></label>' +
     '<label>City<select name="city">' + CITIES.map(c => '<option' + (c[0] === city ? ' selected' : '') + '>' + c[0] + '</option>').join('') + '</select></label>' +
     '<label>Location<span class="row" style="margin-top:4px"><button type="button" class="btn s" id="gps">Use my current location</button><span class="xs muted" id="gpsout">' + (h.lat ? 'Saved: ' + (+h.lat).toFixed(4) + ', ' + (+h.lng).toFixed(4) : 'Found from the address') + '</span></span></label>' +
     '<input type="hidden" name="lat" value="' + (h.lat || c0[1]) + '"><input type="hidden" name="lng" value="' + (h.lng || c0[2]) + '"><input type="hidden" name="geo" value="city"></form>' +
@@ -129,6 +131,13 @@ function regForm(me, mode) {
 }
 function bindReg(me, mode) {
   const f = $('#rf'); if (!f) return;
+  let sugg = [], tmr = 0;
+  f.elements.address.addEventListener('input', () => {
+    const v = f.elements.address.value, hit = sugg.find(x => x.label === v);
+    if (hit) { f.elements.lat.value = hit.lat; f.elements.lng.value = hit.lng; f.elements.geo.value = 'pick'; $('#gpsout').textContent = 'Exact place picked'; const c = CITIES.find(x => hit.city && x[0].toLowerCase() === hit.city.toLowerCase()); if (c) f.elements.city.value = c[0]; return; }
+    clearTimeout(tmr); if (v.length < 4) return;
+    tmr = setTimeout(async () => { try { const r = await api('GET', '/geo/suggest?q=' + encodeURIComponent(v) + '&lat=' + f.elements.lat.value + '&lng=' + f.elements.lng.value); sugg = r.items || []; $('#addrs').innerHTML = sugg.map(x => '<option value="' + esc(x.label) + '"></option>').join(''); } catch (e) {} }, 350);
+  });
   f.elements.city.onchange = () => { const c = CITIES.find(x => x[0] === f.elements.city.value); if (c && f.elements.geo.value !== 'gps') { f.elements.lat.value = c[1]; f.elements.lng.value = c[2]; } };
   $('#gps').onclick = () => navigator.geolocation ? navigator.geolocation.getCurrentPosition(p => { f.elements.lat.value = p.coords.latitude; f.elements.lng.value = p.coords.longitude; f.elements.geo.value = 'gps'; $('#gpsout').textContent = 'Using this device location'; }, () => toast('Could not get the location. The address will be used instead.')) : toast('Location is not available here');
   $('#rsubmit').onclick = guard(async () => {
@@ -254,7 +263,7 @@ PAGES.banks = async () => {
   const banks = bj.items;
   $('#main').innerHTML = head('Blood bank map', 'Every blood bank on LifeLink with the units it has. Click a marker or a row.') + '<div class="grid" style="grid-template-columns:2fr 1fr;align-items:start"><div id="map"></div><div class="card" style="max-height:520px;overflow:auto"><h2>Nearest first</h2>' +
     banks.map(b => '<button data-a="mapfocus" data-id="' + b.id + '" style="width:100%;text-align:left;background:none;border:0;border-top:1px solid var(--line);padding:10px 0"><b>' + esc(b.name) + '</b>' + (b.mine ? ' <span class="tag bg">You</span>' : '') + '<div class="xs muted">' + esc(b.city) + ' · ' + b.km + ' km · ' + BGS.reduce((a, g) => a + (b.stock[g] || 0), 0) + ' units</div></button>').join('') + '</div></div>';
-  const map = L.map('map').setView([d.bank.lat, d.bank.lng], 11); L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom: 19, attribution: '© OpenStreetMap contributors' }).addTo(map);
+  const map = L.map('map').setView([d.bank.lat, d.bank.lng], 11); mbxTiles().addTo(map);
   const pop = b => '<div style="min-width:230px"><b>' + esc(b.name) + '</b><div class="xs" style="color:#6B7089">' + esc(b.address) + '<br>' + esc(b.hours || '') + (b.phone ? ' · ' + esc(b.phone) : '') + '</div>' +
     '<div style="display:grid;grid-template-columns:repeat(4,1fr);gap:4px;margin-top:8px">' + BGS.map(g => '<div style="text-align:center;border-radius:8px;padding:3px;background:' + ((b.stock[g] || 0) < 5 ? '#FDECEC' : '#E3F3EB') + '"><b style="font-size:11px">' + g + '</b><br>' + (b.stock[g] || 0) + '</div>').join('') + '</div></div>';
   S.markers = {}; banks.forEach(b => { const m = L.marker([b.lat, b.lng], { icon: L.divIcon({ className: '', html: '<div class="pin' + (b.mine ? ' me' : '') + '">+</div>', iconSize: [30, 30], iconAnchor: [15, 15] }) }).addTo(map).bindPopup(pop(b)); S.markers[b.id] = m; });

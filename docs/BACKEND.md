@@ -60,6 +60,19 @@ Open `http://localhost:8787/admin`. Point the app at it: Android `./gradlew asse
 | `DL_FETCH_FILES=1` | also download the approved identity PDFs (never Aadhaar) so the admin can view them later |
 | `APP_RETURN_URL` | Android deep link, default `savrolifelink://digilocker/done` |
 
+## Maps (Mapbox)
+
+Without any setting the app, the hospital dashboard and the admin portal use the free OpenStreetMap tiles, and hospital addresses are found with Nominatim. For production set these in Render:
+
+| Variable | What it is |
+|---|---|
+| `MAPBOX_TOKEN` | a **public** token (starts `pk.`). It is sent to the apps (`/api/config`) so they can load tiles, and the server also uses it for address search. Restrict it by URL in the Mapbox dashboard |
+| `MAPBOX_STYLE` | optional, default `mapbox/streets-v12` |
+| `MAPBOX_GEOCODE_TOKEN` | optional separate token for address search only (use a secret `sk.` token with only the geocoding scope if you want it kept off the apps) |
+| `MAPBOX_PERMANENT` | set to `1` once *permanent geocoding* is enabled on the Mapbox account (needed by their terms because we store the coordinates) |
+
+Hospital registration also offers address suggestions (`GET /api/geo/suggest?q=`), which picks the exact place. If Mapbox fails or finds nothing, the server falls back to Nominatim.
+
 ## How the app talks to it
 
 The app is **offline demo** until it has a backend URL; with one it becomes the live app:

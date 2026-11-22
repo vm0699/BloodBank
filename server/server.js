@@ -92,7 +92,7 @@ function readBody(req, max) {
 const SEC = { 'X-Content-Type-Options': 'nosniff', 'Referrer-Policy': 'no-referrer', 'X-Frame-Options': 'DENY', 'Cross-Origin-Opener-Policy': 'same-origin', 'Permissions-Policy': 'camera=(), microphone=(), geolocation=(self)' };
 if (/^https:\/\//.test(env.PUBLIC_BASE_URL || '')) SEC['Strict-Transport-Security'] = 'max-age=31536000; includeSubDomains';
 // Admin portal + legal pages only (not the DigiLocker pages, which redirect back into the app's own URL scheme)
-const PAGE_CSP = "default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: https://tile.openstreetmap.org https://*.tile.openstreetmap.org; connect-src 'self'; frame-ancestors 'none'; base-uri 'none'; form-action 'self'";
+const PAGE_CSP = "default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: https://tile.openstreetmap.org https://*.tile.openstreetmap.org https://api.mapbox.com; connect-src 'self'; frame-ancestors 'none'; base-uri 'none'; form-action 'self'";
 const send = (res, code, type, body, extra) => { res.writeHead(code, Object.assign({ 'Content-Type': type, 'Cache-Control': 'no-store' }, SEC, extra || {})); res.end(body); };
 const sendJson = (res, code, obj) => send(res, code, 'application/json', JSON.stringify(obj));
 

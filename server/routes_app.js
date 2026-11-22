@@ -35,7 +35,7 @@ module.exports = function register(R, { store, core, dl, env, dataDir, limiter }
   });
   R.add('GET', '/api/config', { auth: 'public' }, () => {
     const c = core.cfg();
-    return { gapMen: c.gapMen, gapWomen: c.gapWomen, minAge: c.minAge, maxAge: c.maxAge, minWeight: c.minWeight, defaultRadiusKm: c.defaultRadiusKm, maintenance: !!c.maintenance, announcement: c.announcement || '', digilockerMock: dl.MOCK, verifyPolicy: c.verifyPolicy, verifyRequireLicence: !!c.verifyRequireLicence, verifyAllowSkip: !!c.verifyAllowSkip, verifiedDonorsOnly: !!c.verifiedDonorsOnly, verifiedRequestersOnly: !!c.verifiedRequestersOnly, aadhaarEntry: !!c.aadhaarEntry };
+    return { gapMen: c.gapMen, gapWomen: c.gapWomen, minAge: c.minAge, maxAge: c.maxAge, minWeight: c.minWeight, defaultRadiusKm: c.defaultRadiusKm, maintenance: !!c.maintenance, announcement: c.announcement || '', digilockerMock: dl.MOCK, verifyPolicy: c.verifyPolicy, verifyRequireLicence: !!c.verifyRequireLicence, verifyAllowSkip: !!c.verifyAllowSkip, verifiedDonorsOnly: !!c.verifiedDonorsOnly, verifiedRequestersOnly: !!c.verifiedRequestersOnly, aadhaarEntry: !!c.aadhaarEntry, mapboxToken: env.MAPBOX_TOKEN || '', mapboxStyle: env.MAPBOX_STYLE || 'mapbox/streets-v12' };
   });
 
   /* ---------- auth: phone OTP ---------- */

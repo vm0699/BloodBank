@@ -82,6 +82,8 @@ function logout() { TOKEN = ''; ME = null; sessionStorage.removeItem('adm'); ren
 
 /* ---------- modal ---------- */
 let mapPick = null;
+window.MBX = { token: '', style: '' }; fetch('/api/config').then(r => r.json()).then(c => { if (c.mapboxToken) window.MBX = { token: c.mapboxToken, style: c.mapboxStyle || '' }; }).catch(() => {});
+const mbxTiles = () => { const t = window.MBX.token; return t ? L.tileLayer('https://api.mapbox.com/styles/v1/' + (window.MBX.style || 'mapbox/streets-v12') + '/tiles/512/{z}/{x}/{y}@2x?access_token=' + t, { tileSize: 512, zoomOffset: -1, maxZoom: 20, attribution: '© Mapbox © OpenStreetMap' }) : L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom: 19, attribution: '© OpenStreetMap' }); };
 function modal(html) { closeModal(); const d = document.createElement('div'); d.className = 'modalbg'; d.innerHTML = '<div class="modal">' + html + '</div>'; d.addEventListener('mousedown', e => { if (e.target === d) closeModal(); }); document.body.appendChild(d); return d; }
 function closeModal() { document.querySelectorAll('.modalbg').forEach(m => m.remove()); mapPick = null; }
 const confirmBox = (msg, label) => new Promise(res => { const m = modal('<h2>' + esc(msg) + '</h2><div class="acts"><button class="btn" id="cn">Cancel</button><button class="btn p" id="cy">' + esc(label || 'Confirm') + '</button></div>'); $('#cn', m).onclick = () => { closeModal(); res(false); }; $('#cy', m).onclick = () => { closeModal(); res(true); }; });
@@ -91,7 +93,7 @@ function pickMap(lat, lng) {
     const el = $('#pick'); if (!el || !window.L) return;
     const c = [parseFloat(lat) || 13.0827, parseFloat(lng) || 80.2707];
     mapPick = L.map(el).setView(c, (lat ? 15 : 11));
-    L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom: 19, attribution: '© OpenStreetMap' }).addTo(mapPick);
+    mbxTiles().addTo(mapPick);
     let mk = lat ? L.marker(c).addTo(mapPick) : null;
     mapPick.on('click', e => { if (mk) mk.setLatLng(e.latlng); else mk = L.marker(e.latlng).addTo(mapPick); $('[name=lat]').value = e.latlng.lat.toFixed(6); $('[name=lng]').value = e.latlng.lng.toFixed(6); });
   }, 50);

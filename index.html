@@ -352,6 +352,10 @@ const API = (() => {
   return String(b || '').replace(/\/$/, '');
 })();
 const DEMO = !API;
+window.MBX = { token: '', style: '' }; let TILELAYER = null;
+const mbxTiles = () => { const t = window.MBX && window.MBX.token; return t ? L.tileLayer('https://api.mapbox.com/styles/v1/' + (window.MBX.style || 'mapbox/streets-v12') + '/tiles/512/{z}/{x}/{y}@2x?access_token=' + t, { tileSize: 512, zoomOffset: -1, maxZoom: 20, crossOrigin: true }) : L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom: 19, crossOrigin: true }); };
+const mbxAttr = () => (window.MBX && window.MBX.token ? '© Mapbox © OpenStreetMap' : '© OpenStreetMap contributors');
+
 const HAS_NATIVE = !!window.AndroidBridge;
 const HELPLINES = { emergency: '112', ambulance: '108', notto: '1800114770' };
 
@@ -432,10 +436,10 @@ async function api(method, path, body) {
 }
 // run an API action; show the server's message as a toast if it fails
 async function act(fn) { try { return await fn(); } catch (e) { if (e.status !== 401) toast(e.message); return undefined; } }
-function setSession(token) { AUTH.token = token; LS.set('token', token); stopLive(); if (token) setTimeout(() => { startLive(); startWatch(); }, 0); }
+function setSession(token) { AUTH.token = token; LS.set('token', token); if (!token) LS.set('lastui', null); stopLive(); if (token) setTimeout(() => { startLive(); startWatch(); }, 0); }
 function onSessionExpired() {
   stopLive(); stopWatch();
-  AUTH.token = ''; LS.set('token', '');
+  AUTH.token = ''; LS.set('token', ''); LS.set('lastui', null);
   if (!document.getElementById('ob')) { toast('Please sign in again'); closeAllLayers(); openOnboarding(); }
 }
 let syncBusy = false, syncSig = '', syncFirst = true, syncAgain = false;
@@ -912,11 +916,14 @@ function renderTabs() {
 function gotoTab(t) {
   if (!tabsNow().some(x => x[0] === t)) t = 'home';
   S.ui.tab = t;
+  saveUi();
   $$('.pane').forEach(p => p.classList.toggle('on', p.id === 'p-' + t));
   renderTabs(); renderPane(t);
   if (t === 'map') mapShown();
   if (ROLE() === 'hospital' && ['home', 'stock', 'req', 'camps'].includes(t)) loadHosp();
 }
+// Remember where the person was, so killing and reopening the app returns to the same screen (cleared on sign-out).
+function saveUi() { try { LS.set('lastui', { tab: S.ui.tab, reqSeg: S.ui.reqSeg, mapMode: S.ui.mapMode, need: S.ui.need }); } catch (e) {} }
 function renderPane(t) { ({ home: renderHome, map: renderMapPane, req: renderReq, organ: renderOrgan, me: renderMe, stock: renderStock, camps: renderHospCamps })[t](); }
 function refreshActive() {
   if (S.ui.tab !== 'map') renderPane(S.ui.tab); else renderMapPane();
@@ -1077,11 +1084,11 @@ function buildMapPane() {
   const el = $('#p-map');
   if (!window.L) { el.innerHTML = '<div class="empty">The map engine failed to load.</div>'; return; }
   el.innerHTML = '<div id="map"></div><div class="mtop"><div class="seg" id="mseg"></div><div class="hscroll" id="mchips"></div></div>' +
-    '<div class="mattr">© OpenStreetMap contributors</div><div class="mlive" id="mlive"></div>' +
+    '<div class="mattr">' + mbxAttr() + '</div><div class="mlive" id="mlive"></div>' +
     '<button class="mfab" style="top:calc(var(--sat) + 112px)" data-act="mylocate" aria-label="My location">' + ic('locate') + '</button>' +
     '<div class="mbot"><div class="mpanel" id="mpanel"></div></div>';
   MAP = L.map('map', { zoomControl: false, attributionControl: false, preferCanvas: false, zoomSnap: .5 }).setView([S.loc.lat, S.loc.lng], 12.5);
-  L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom: 19, crossOrigin: true }).addTo(MAP);
+  TILELAYER = mbxTiles().addTo(MAP);
   radiusCircle = L.circle([S.loc.lat, S.loc.lng], { radius: S.settings.radius * 1000, color: '#C62828', weight: 1, fillOpacity: .04, interactive: false }).addTo(MAP);
   meMarker = L.marker([S.loc.lat, S.loc.lng], { icon: L.divIcon({ className: '', html: '<div class="meDot"></div>', iconSize: [20, 20], iconAnchor: [10, 10] }), zIndexOffset: 2000, interactive: false }).addTo(MAP);
   MAP.on('click', () => {});
@@ -2710,12 +2717,15 @@ function applyTheme() {
 }
 window.__llBack = () => { if (popLayer()) return true; if (S.ui.tab !== 'home') { gotoTab('home'); return true; } return false; };
 document.addEventListener('contextmenu', e => e.preventDefault());
+document.addEventListener('visibilitychange', () => { if (document.hidden) saveUi(); });
+window.addEventListener('pagehide', saveUi);
 document.addEventListener('visibilitychange', () => { if (!document.hidden && !layers.length) { if (live()) { syncNow(true); sendPresence(); } else refreshActive(); } });
 applyTheme();
 buildWorld();
 renderTabs();
 renderHome();
 if (DEMO ? !S.profile : !AUTH.token) openOnboarding();
+else { const lu = LS.get('lastui', null); if (lu && lu.tab && lu.tab !== 'home') { ['reqSeg', 'mapMode', 'need'].forEach(k => { if (lu[k]) S.ui[k] = lu[k]; }); gotoTab(lu.tab); } }
 syncEligNotice();
 const TA_MORE = {
   'Your driving licence is needed': 'உங்கள் ஓட்டுநர் உரிமம் தேவை', 'Your Aadhaar card is needed': 'உங்கள் ஆதார் அட்டை தேவை',
@@ -2760,7 +2770,7 @@ setInterval(() => {
   else if (live() && !document.hidden && (S.ui.tab === 'map' ? tickN % (LIVE.on ? 8 : 3) === 0 : tickN % (LIVE.on ? 12 : 6) === 0)) syncNow();
 }, 2000);
 setInterval(() => { if (live() && !document.hidden && S.profile && S.profile.available) sendPresence(); }, 30000);
-if (!DEMO && API) fetch(API + '/api/config').then(r => r.json()).then(c => { ['verifiedDonorsOnly', 'verifiedRequestersOnly', 'aadhaarEntry', 'verifyAllowSkip'].forEach(k => { if (k in c) CFG[k] = !!c[k]; }); }).catch(() => {});
+if (!DEMO && API) fetch(API + '/api/config').then(r => r.json()).then(c => { ['verifiedDonorsOnly', 'verifiedRequestersOnly', 'aadhaarEntry', 'verifyAllowSkip'].forEach(k => { if (k in c) CFG[k] = !!c[k]; }); if (c.mapboxToken && !window.MBX.token) { window.MBX = { token: c.mapboxToken, style: c.mapboxStyle || '' }; try { if (MAP && TILELAYER) { MAP.removeLayer(TILELAYER); TILELAYER = mbxTiles().addTo(MAP); TILELAYER.bringToBack(); const a = document.querySelector('#p-map .mattr'); if (a) a.textContent = mbxAttr(); } } catch (e) {} } }).catch(() => {});
 if (live()) {
   syncNow(true).then(() => resumeOnboarding()); registerPush();
   startLive();

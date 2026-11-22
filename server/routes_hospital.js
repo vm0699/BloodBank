@@ -9,7 +9,7 @@ const A = require('./lib/auth');
 const live = require('./lib/live');
 const { hav, validLL } = require('./lib/geo');
 const { HttpError, bad, str, num, isDay, oneOf } = require('./lib/http');
-const { geocode } = require('./lib/geocode');
+const { geocode, suggest } = require('./lib/geocode');
 
 const HOSP_TYPES = ['Hospital', 'Blood bank', 'Clinic', 'NGO / Camp organiser'];
 
@@ -54,11 +54,17 @@ module.exports = function register(R, { store, core, limiter }) {
   const meView = u => ({ me: core.userView(u) });
   // If the hospital did not pin itself with the phone's GPS, find the real building from name + address.
   async function pin(o, body) {
-    if (body.geo === 'gps' || !(o.address || o.name)) return;
+    if (body.geo === 'gps' || body.geo === 'pick' || !(o.address || o.name)) return;
     const g = await geocode([o.name, o.address, o.city, 'Tamil Nadu, India'].filter(Boolean).join(', '), o.lat, o.lng, 40)
       || await geocode([o.address, o.city, 'India'].filter(Boolean).join(', '), o.lat, o.lng, 40);
     if (g) { o.lat = g.lat; o.lng = g.lng; o.geo = 'address'; }
   }
+
+  // Address suggestions while typing the hospital address (Mapbox autocomplete; returns [] when it is not configured)
+  R.add('GET', '/api/geo/suggest', { auth: 'user' }, async ({ user, query }) => {
+    if (!limiter.take('suggest:' + user.id, 200, 3600e3)) throw new HttpError(429, 'Too many searches. Please wait a little.');
+    return { items: await suggest(str(query.q, 120), parseFloat(query.lat), parseFloat(query.lng)) };
+  });
 
   /* ---------- account type ---------- */
   R.add('PUT', '/api/me/role', { auth: 'user' }, ({ user, body }) => {

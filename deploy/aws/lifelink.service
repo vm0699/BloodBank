@@ -1,0 +1,20 @@
+[Unit]
+Description=LifeLink API
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+User=lifelink
+WorkingDirectory=/opt/lifelink/server
+EnvironmentFile=/etc/lifelink.env
+ExecStart=/usr/bin/node server.js
+Restart=always
+RestartSec=3
+# keep the working data (signing secret, ID files) outside the code folder
+Environment=DATA_DIR=/var/lib/lifelink
+NoNewPrivileges=true
+ProtectSystem=full
+ReadWritePaths=/var/lib/lifelink /opt/lifelink/server
+
+[Install]
+WantedBy=multi-user.target

@@ -68,3 +68,12 @@ test('landing page links to both dashboards; the hospital dashboard is served wi
   assert.equal(h.status, 200); assert.match(await h.text(), /LifeLink Hospital Dashboard/);
   assert.match(h.headers.get('content-security-policy'), /frame-ancestors 'none'/); assert.equal(h.headers.get('x-frame-options'), 'DENY');
 });
+
+test('map settings: the public map token is offered to the clients, address suggestions need a session, and work without a token', async () => {
+  assert.equal((await (await fetch(base + '/api/config')).json()).mapboxToken, '');
+  assert.equal((await fetch(base + '/api/geo/suggest?q=Chennai')).status, 401);
+  const o = await (await fetch(base + '/api/auth/otp/request', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ phone: '9877700077' }) })).json();
+  const v = await (await fetch(base + '/api/auth/otp/verify', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ phone: '9877700077', otp: o.devOtp }) })).json();
+  const r = await (await fetch(base + '/api/geo/suggest?q=Apollo%20Hospital%20Chennai', { headers: { Authorization: 'Bearer ' + v.token } })).json();
+  assert.deepEqual(r.items, []);
+});
