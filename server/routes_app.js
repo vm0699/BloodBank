@@ -148,10 +148,19 @@ module.exports = function register(R, { store, core, dl, env, dataDir, limiter }
     live.add(req, res, user.id, parseFloat(query.lat), parseFloat(query.lng));
     return { __stream: true };
   });
+  // Everyone (donor or not) can share a coarse position so distances and nearby alerts work. It is never shown to other users; off = forget it.
+  R.add('PUT', '/api/me/location', { auth: 'user' }, ({ user, body }) => {
+    if (body.off === true) { delete user.loc; store.save(); return { ok: true, shared: false }; }
+    const lat = parseFloat(body.lat), lng = parseFloat(body.lng);
+    if (!validLL(lat, lng)) throw bad('Check the location');
+    if (!limiter.take('loc:' + user.id, 120, 3600e3)) throw new HttpError(429, 'Too many location updates');
+    user.loc = { lat: Math.round(lat * 1e4) / 1e4, lng: Math.round(lng * 1e4) / 1e4, seen: Date.now(), src: body.src === 'gps' ? 'gps' : 'city' };
+    store.save(); return { ok: true, shared: true };
+  });
   R.add('PUT', '/api/me/presence', { auth: 'user' }, ({ user, body }) => {
     if ('available' in body) user.available = !!body.available;
     const lat = parseFloat(body.lat), lng = parseFloat(body.lng);
-    if (validLL(lat, lng)) { user.presence = { lat, lng, seen: Date.now() }; live.setPos(user.id, lat, lng); }
+    if (validLL(lat, lng)) { user.presence = { lat, lng, seen: Date.now() }; user.loc = { lat, lng, seen: Date.now(), src: 'gps' }; live.setPos(user.id, lat, lng); }
     store.save();
     const listed = core.donorListed(user, core.cfg());
     if (listed) { const d = core.publicDonor(user); live.emitNear(d.lat, d.lng, 'donor', d, user.id); }
@@ -163,7 +172,7 @@ module.exports = function register(R, { store, core, dl, env, dataDir, limiter }
     const me = core.userView(user), v = user.verify || {};
     return {
       exportedAt: new Date().toISOString(), id: user.id, createdAt: user.createdAt, lastLogin: user.lastLogin || null, consentAt: user.consentAt || null,
-      profile: me.profile, location: user.presence || null,
+      profile: me.profile, location: user.loc || user.presence || null,
       verification: { status: v.status || 'none', method: v.method || '', name: v.name || '', dob: v.dob || '', gender: v.gender || '', last4: v.last4 || '', at: v.at || null, consentUntil: v.consentUntil || null },
       documents: me.documents, organPledge: user.organ || null,
       donations: store.filter('donations', d => d.userId === user.id).map(d => ({ date: new Date(d.t).toISOString().slice(0, 10), place: d.place, type: d.type, units: d.units })),
@@ -216,7 +225,7 @@ module.exports = function register(R, { store, core, dl, env, dataDir, limiter }
     let lat = parseFloat(body.lat), lng = parseFloat(body.lng);
     const bankHost = store.find('banks', b => b.name.toLowerCase() === hospital.toLowerCase());
     const host = bankHost || store.find('centres', b => b.name.toLowerCase() === hospital.toLowerCase());
-    if (host) { lat = host.lat; lng = host.lng; } else if (!validLL(lat, lng)) { if (user.presence) { lat = user.presence.lat; lng = user.presence.lng; } else throw bad('Location is required'); }
+    if (host) { lat = host.lat; lng = host.lng; } else if (!validLL(lat, lng)) { const pp = core.posOf(user); if (pp) { lat = pp.lat; lng = pp.lng; } else throw bad('Location is required'); }
     if (store.find('requests', r => r.userId === user.id && r.status === 'open' && r.bg === bg && r.hospital.toLowerCase() === hospital.toLowerCase() && r.patient.toLowerCase() === patient.toLowerCase())) throw new HttpError(409, 'You already have an open request for this patient');
     const r = store.insert('requests', { userId: user.id, patient, bg, units, comp: oneOf(body.comp, core.COMPONENTS) || 'Whole blood', hospital, city: str(body.city, 60) || user.city || '', lat, lng, urgency, by: Date.now() + hours * 36e5,
       created: Date.now(), contact: phone, contactName: str(body.cname, 80) || user.name || '', note: str(body.note, 300), status: 'open', received: 0, responses: [], bankId: bankHost ? bankHost.id : '' });

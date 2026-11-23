@@ -277,6 +277,16 @@ class MainActivity : ComponentActivity() {
             Notifier.cancel(context, id)
         }
 
+        /** Opens this app's page in the phone's settings (so a person who denied location can switch it on). */
+        @JavascriptInterface
+        fun openAppSettings() {
+            runOnUiThread {
+                try {
+                    startActivity(Intent(android.provider.Settings.ACTION_APPLICATION_DETAILS_SETTINGS, Uri.parse("package:" + packageName)))
+                } catch (_: Exception) { /* no settings screen available */ }
+            }
+        }
+
         /** Asks for the Android 13+ notification permission (needed for push and reminders). */
         @JavascriptInterface
         fun requestNotifPermission() {

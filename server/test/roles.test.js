@@ -409,3 +409,34 @@ test('admin users list tells donors, requesters, both and hospitals apart, can f
   const csv = await (await fetch(base + '/api/admin/export/users', { headers: { Authorization: 'Bearer ' + tok } })).text();
   assert.match(csv.split('\n')[0], /type,requests_made/); assert.ok(csv.includes('both,1'));
 });
+
+test('location sharing and camp announcements: everyone can share a position, a new camp alerts only nearby donors who can donate that day, once', async () => {
+  // endpoint: validates, accepts, and "off" makes the server forget it
+  const anyone = crowdUser('A+', { donor: false, available: false, presence: null });
+  assert.equal((await call('PUT', '/api/me/location', { lat: 999, lng: 80 }, anyone.token)).status, 400);
+  assert.equal((await call('PUT', '/api/me/location', { lat: 13.0827, lng: 80.2707, src: 'gps' }, anyone.token)).status, 200);
+  assert.deepEqual([store.get('users', anyone.id).loc.lat, store.get('users', anyone.id).loc.lng], [13.0827, 80.2707]);
+  assert.equal((await call('PUT', '/api/me/location', { off: true }, anyone.token)).status, 200);
+  assert.equal(store.get('users', anyone.id).loc, undefined);
+  // a donor who is NOT "available" on the map but shares a position near the camp is told; far, resting, non-donor and unlocated people are not
+  const near = crowdUser('O+', { available: false, presence: null, loc: { lat: LAT + 0.02, lng: LNG, seen: Date.now() } });
+  const far = crowdUser('O+', { available: false, presence: null, loc: { lat: LAT + 2, lng: LNG, seen: Date.now() } });
+  const resting = crowdUser('O+', { available: false, presence: null, loc: { lat: LAT + 0.02, lng: LNG, seen: Date.now() }, last: core.dayKey(Date.now() - 5 * 86400e3) });
+  const nonDonor = crowdUser('O+', { donor: false, available: false, presence: null, loc: { lat: LAT + 0.02, lng: LNG, seen: Date.now() } });
+  const unlocated = crowdUser('O+', { available: false, presence: null });
+  const stale = crowdUser('O+', { available: false, presence: null, loc: { lat: LAT + 0.02, lng: LNG, seen: Date.now() - 90 * 86400e3 } });
+  const camp = await call('POST', '/api/hospital/camps', { title: 'Nearby Alert Camp', date: core.dayKey(Date.now() + 3 * 86400e3), slots: 50, venue: 'Anna Nagar', lat: LAT, lng: LNG }, hosp.token);
+  assert.equal(camp.status, 200); assert.ok(camp.notified >= 1);
+  const got = async u => (await call('GET', '/api/notifications', null, u.token)).items.filter(n => n.type === 'camp_new' && n.data.campId === camp.camp.id).length;
+  assert.equal(await got(near), 1); assert.equal(await got(far), 0); assert.equal(await got(resting), 0);
+  assert.equal(await got(nonDonor), 0); assert.equal(await got(unlocated), 0); assert.equal(await got(stale), 0);
+  // announcing twice does not notify twice; the admin portal path announces too
+  assert.equal(core.announceCamp(store.get('camps', camp.camp.id), ''), 0); assert.equal(await got(near), 1);
+  const tok = await admin();
+  const ac = await call('POST', '/api/admin/camps', { title: 'Admin Alert Camp', date: core.dayKey(Date.now() + 4 * 86400e3), lat: LAT, lng: LNG, bankId: '', host: 'Admin', slots: 20 }, tok);
+  assert.equal(ac.status, 200); assert.ok(ac.notified >= 1);
+  // a resting donor whose rest period ends before the camp day IS told
+  const soon = crowdUser('O+', { available: false, presence: null, loc: { lat: LAT + 0.02, lng: LNG, seen: Date.now() }, last: core.dayKey(Date.now() - 88 * 86400e3) });
+  const c3 = await call('POST', '/api/hospital/camps', { title: 'Later Camp', date: core.dayKey(Date.now() + 10 * 86400e3), slots: 50, lat: LAT, lng: LNG }, hosp.token);
+  assert.equal((await call('GET', '/api/notifications', null, soon.token)).items.filter(n => n.type === 'camp_new' && n.data.campId === c3.camp.id).length, 1);
+});

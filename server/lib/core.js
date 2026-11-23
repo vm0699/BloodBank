@@ -19,7 +19,7 @@ const DAY = 864e5, HOUR = 36e5;
 const CONFIG_DEFAULTS = {
   gapMen: 90, gapWomen: 120, minAge: 18, maxAge: 65, minWeight: 45,
   defaultRadiusKm: 10, alertMax: 12, alertRadiusKm: 15, presenceFreshMin: 30,
-  requestExpiryHours: 12, donationCheckHours: 6, requestsPerHour: 5, maintenance: false, announcement: '',
+  requestExpiryHours: 12, donationCheckHours: 6, campAlertRadiusKm: 25, locFreshDays: 30, requestsPerHour: 5, maintenance: false, announcement: '',
   // Who counts as "verified": 'digilocker' = DigiLocker (or an admin override) with the Aadhaar card shared (always required);
   // verifyRequireLicence also demands a driving licence (default: optional). 'any' = any approved method.
   // verifyAllowSkip: onboarding offers "I only need to request blood" (they still cannot donate until verified).
@@ -112,6 +112,10 @@ function create(store, dataDir) {
     donation_check_req: {
       en: p => ['Did ' + p.name + ' donate?', 'Tap "Donated" on your request for ' + p.patient + ' so it is recorded and your request stays accurate.'],
       ta: p => [p.name + ' தானம் செய்தாரா?', p.patient + ' கோரிக்கையில் "தானம் செய்தார்" என்பதைத் தொடவும்; பதிவு சரியாக இருக்கும்.']
+    },
+    camp_new: {
+      en: p => ['Blood camp near you', p.title + ' · ' + p.km + ' km away · ' + p.date + (p.time ? ', ' + p.time : '') + '. Open Blood drives to register.'],
+      ta: p => ['அருகில் இரத்த தான முகாம்', p.title + ' · ' + p.km + ' கி.மீ. தொலைவில் · ' + p.date + (p.time ? ', ' + p.time : '') + '. பதிவு செய்ய "இரத்த தான முகாம்கள்" திறக்கவும்.']
     },
     verified: { en: () => ['You are verified', 'Your identity was verified. You can now appear as a donor.'], ta: () => ['சரிபார்க்கப்பட்டது', 'உங்கள் அடையாளம் சரிபார்க்கப்பட்டது. இனி நீங்கள் கொடையாளராக தோன்றலாம்.'] },
     verify_rejected: { en: p => ['Verification failed', p.reason || 'We could not verify your ID. Please try again.'], ta: p => ['சரிபார்ப்பு தோல்வி', p.reason || 'உங்கள் அடையாளத்தை சரிபார்க்க முடியவில்லை. மீண்டும் முயலவும்.'] },
@@ -241,6 +245,34 @@ function create(store, dataDir) {
     return true;
   }
 
+  /* ---------- where people are ----------
+     Everyone who allows it shares a coarse position with the server (user.loc); available donors also have a live map position (user.presence).
+     The position is only ever used to work out distances and to pick who is told about something nearby - it is never shown to other users. */
+  function posOf(u, c) {
+    const p = u.loc || u.presence; if (!p) return null;
+    return u.demo || Date.now() - (p.seen || 0) <= ((c || cfg()).locFreshDays || 30) * DAY ? p : null;      // an old position is not trusted
+  }
+  // Will this donor be allowed to give on that day? (health/age/weight answers must be fine and the rest period must be over by then)
+  function eligibleOn(u, day) {
+    if (eligibility(u).reasons.some(r => r !== 'gap')) return false;
+    if (!u.last) return true;
+    const gap = effGender(u) === 'F' ? cfg().gapWomen : cfg().gapMen;
+    return dayKey(new Date(u.last + 'T00:00:00').getTime() + gap * DAY) <= day;
+  }
+  // A new camp: tell donors who are within reach and could actually donate on the camp day (in-app + push), and refresh nearby screens live.
+  function announceCamp(cp, byId) {
+    if (!cp || cp.status === 'cancelled' || cp.announced || !(cp.lat >= -90 && cp.lat <= 90 && cp.lng >= -180 && cp.lng <= 180)) return 0;
+    const c = cfg(), have = new Set(cp.regs || []);
+    const cand = users().filter(u => u.id !== byId && !have.has(u.id) && u.status !== 'suspended' && (u.role || 'user') === 'user' && u.donor === true && eligibleOn(u, cp.date))
+      .map(u => ({ u, p: posOf(u, c) })).filter(x => x.p)
+      .map(x => ({ u: x.u, km: hav(cp.lat, cp.lng, x.p.lat, x.p.lng) })).filter(x => x.km <= c.campAlertRadiusKm)
+      .sort((a, b) => a.km - b.km).slice(0, 300);
+    cand.forEach(({ u, km }) => notify(u.id, 'camp_new', { title: cp.title, date: cp.date, time: cp.time || '', km: Math.round(km * 10) / 10 }, { campId: cp.id }));
+    cp.announced = Date.now(); store.save();
+    live.emitNear(cp.lat, cp.lng, 'feed', { camp: cp.id }, byId, 40);
+    return cand.length;
+  }
+
   /* ---------- scheduled jobs ---------- */
   function jobs() {
     const c = cfg(), now = Date.now(), today = dayKey(now);
@@ -314,6 +346,6 @@ function create(store, dataDir) {
   }
 
   return { migrate, donorOk, BGS, COMPAT, canGive, COMPONENTS, URGENCY, cfg, CONFIG_DEFAULTS, shortName, isVerified, verifyNeed, docLocked, hasDoc, ageOf, dayKey, eligibility, notify, donorListed, publicDonor, userView, reqView, offerState,
-    alertDonors, confirmDonation, jobs, eraseUser, donorPos, HEALTH };
+    alertDonors, confirmDonation, posOf, eligibleOn, announceCamp, jobs, eraseUser, donorPos, HEALTH };
 }
 module.exports = { create, BGS, COMPAT, canGive, COMPONENTS, URGENCY, CONFIG_DEFAULTS };

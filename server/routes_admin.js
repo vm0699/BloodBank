@@ -270,7 +270,8 @@ module.exports = function register(R, { store, core, dl, env, dataDir, limiter }
     return { items: a.map(c => Object.assign({}, c, { regs: undefined, regCount: (c.regs || []).length })) };
   });
   R.add('POST', '/api/admin/camps', adm, ({ admin, body }) => {
-    staffBank(admin); const c = store.insert('camps', Object.assign({ regs: [], status: 'active' }, campBody(body, admin))); audit(admin, 'camp.create', c.id); return { camp: c };
+    staffBank(admin); const c = store.insert('camps', Object.assign({ regs: [], status: 'active' }, campBody(body, admin))); audit(admin, 'camp.create', c.id);
+    const notified = core.announceCamp(c, ''); return { camp: c, notified };
   });
   R.add('PUT', '/api/admin/camps/:id', adm, ({ admin, params, body }) => {
     const c = store.get('camps', params.id); if (!c) throw new HttpError(404, 'Not found'); if (admin.role === 'staff') needBankAccess(admin, c.bankId);

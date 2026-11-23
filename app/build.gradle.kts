@@ -11,8 +11,8 @@ android {
         applicationId = "com.savro.lifelink"
         minSdk = 24
         targetSdk = 35
-        versionCode = 1
-        versionName = "1.0"
+        versionCode = 2
+        versionName = "1.1"
         // Backend base URL (DigiLocker OAuth exchange). Empty = offline demo mode with a simulated DigiLocker.
         // Override per build:  ./gradlew assembleRelease -PapiBase=https://api.example.com
         buildConfigField("String", "API_BASE", "\"${(project.findProperty("apiBase") as String?) ?: ""}\"")

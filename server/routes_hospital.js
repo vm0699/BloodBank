@@ -45,7 +45,7 @@ module.exports = function register(R, { store, core, limiter }) {
     if ('components' in body) o.components = [].concat(body.components || []).filter(x => core.COMPONENTS.includes(x));
     if (!partial || 'lat' in body || 'lng' in body) {
       let la = parseFloat(body.lat), lo = parseFloat(body.lng);
-      if (!validLL(la, lo) && user.presence) { la = user.presence.lat; lo = user.presence.lng; }
+      const pp = core.posOf(user); if (!validLL(la, lo) && pp) { la = pp.lat; lo = pp.lng; }
       if (!validLL(la, lo)) throw bad('Set the location of the hospital');
       o.lat = la; o.lng = lo;
     }
@@ -172,8 +172,8 @@ module.exports = function register(R, { store, core, limiter }) {
     const slots = Math.round(num(body.slots, 1, 5000) || 50);
     const x = store.insert('camps', { title, org: b.name, host: b.name, bankId: b.id, date: body.date, time: str(body.time, 60) || '9:00 AM - 3:00 PM', venue: str(body.venue, 120) || b.address || b.name,
       lat: la, lng: lo, slots, regs: [], status: 'active', createdBy: user.id });
-    live.emitNear(la, lo, 'feed', { camp: x.id }, user.id, 40);
-    return { camp: campView(x) };
+    const notified = core.announceCamp(x, user.id);                  // nearby eligible donors get an alert (in-app + push)
+    return { camp: campView(x), notified };
   });
   R.add('PATCH', '/api/hospital/camps/:id', { auth: 'user' }, ({ user, params, body }) => {
     const x = ownCamp(user, params.id);
