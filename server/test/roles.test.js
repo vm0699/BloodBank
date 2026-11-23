@@ -394,3 +394,18 @@ test('marking donations: requester can confirm a donor on a full/closed request,
   assert.equal(dn.items.filter(n => n.type === 'donation_check').length, 1);
   assert.equal(rn.items.filter(n => n.type === 'donation_check_req' && n.data.requestId === r3).length, 1);
 });
+
+test('admin users list tells donors, requesters, both and hospitals apart, can filter by type, and exports the type', async () => {
+  const tok = await admin();
+  const donor = crowdUser('O+'), requester = crowdUser('A+', { donor: false, available: false }), both = crowdUser('B+'), hosp2 = crowdUser('', { role: 'hospital', donor: false, available: false });
+  assert.equal((await call('POST', '/api/requests', { patient: 'Kind Patient', bg: 'B-', units: 1, urgency: 'planned', hospital: 'Kind General', phone: '9811100099' }, both.token)).status, 200);
+  const all = await call('GET', '/api/admin/users?size=200', null, tok), kindOfId = id => (all.items.find(u => u.id === id) || {}).kind;
+  assert.equal(kindOfId(donor.id), 'donor'); assert.equal(kindOfId(requester.id), 'requester'); assert.equal(kindOfId(both.id), 'both'); assert.equal(kindOfId(hosp2.id), 'hospital');
+  assert.equal(all.items.find(u => u.id === both.id).requests, 1);
+  const onlyReq = await call('GET', '/api/admin/users?kind=requester&size=200', null, tok);
+  assert.ok(onlyReq.items.length > 0 && onlyReq.items.every(u => u.kind === 'requester') && onlyReq.items.some(u => u.id === requester.id));
+  const onlyDon = await call('GET', '/api/admin/users?kind=donor&size=200', null, tok);
+  assert.ok(onlyDon.items.every(u => u.kind === 'donor') && onlyDon.items.some(u => u.id === donor.id));
+  const csv = await (await fetch(base + '/api/admin/export/users', { headers: { Authorization: 'Bearer ' + tok } })).text();
+  assert.match(csv.split('\n')[0], /type,requests_made/); assert.ok(csv.includes('both,1'));
+});

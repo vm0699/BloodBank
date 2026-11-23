@@ -18,7 +18,10 @@ module.exports = function register(R, { store, core, dl, env, dataDir, limiter }
   const csv = rows => rows.map(r => r.map(v => { v = v == null ? '' : String(v); return /[",\n]/.test(v) ? '"' + v.replace(/"/g, '""') + '"' : v; }).join(',')).join('\n');
   const BGS = core.BGS;
   const adminView = a => ({ id: a.id, email: a.email, name: a.name, role: a.role, bankId: a.bankId || '', active: a.active !== false, lastLogin: a.lastLogin || 0 });
-  const userRow = u => ({ id: u.id, name: u.name || '', phone: u.phone, bg: u.bg || '', city: u.city || '', gender: u.gender || '', verify: (u.verify || {}).status || 'none', method: (u.verify || {}).method || '', mismatch: !!(u.verify || {}).mismatch,
+  // What this person is on the platform: a hospital account, a donor, a requester (asks for blood, not a donor) or both (donor who has also posted requests).
+  const reqCounts = () => { const m = new Map(); store.list('requests').forEach(r => m.set(r.userId, (m.get(r.userId) || 0) + 1)); return m; };
+  const kindOf = (u, n) => (u.role || 'user') === 'hospital' ? 'hospital' : u.donor === true ? (n > 0 ? 'both' : 'donor') : 'requester';
+  const userRow = (u, rc) => ({ id: u.id, name: u.name || '', phone: u.phone, requests: (rc || reqCounts()).get(u.id) || 0, kind: kindOf(u, (rc || reqCounts()).get(u.id) || 0), bg: u.bg || '', city: u.city || '', gender: u.gender || '', verify: (u.verify || {}).status || 'none', method: (u.verify || {}).method || '', mismatch: !!(u.verify || {}).mismatch,
     available: !!u.available, listed: core.donorListed(u, core.cfg()), status: u.status || 'active', createdAt: u.createdAt || 0, lastLogin: u.lastLogin || 0, demo: !!u.demo,
     donations: (u.donatedBefore || 0) + store.filter('donations', d => d.userId === u.id).length, organ: !!(u.organ && u.organ.pledged), lang: u.lang || 'en' });
   const bankRow = b => Object.assign({}, b, { stock: Object.assign(Object.fromEntries(BGS.map(g => [g, 0])), b.stock || {}) });
@@ -65,12 +68,12 @@ module.exports = function register(R, { store, core, dl, env, dataDir, limiter }
 
   /* ---------- users / donors ---------- */
   R.add('GET', '/api/admin/users', only, ({ query }) => {
-    const q = str(query.q, 60).toLowerCase();
-    let a = store.list('users').filter(u => (!q || has(u.name, q) || has(u.phone, q) || has(u.city, q) || has(u.id, q))
+    const q = str(query.q, 60).toLowerCase(), rc = reqCounts();
+    let a = store.list('users').filter(u => (!query.kind || kindOf(u, rc.get(u.id) || 0) === query.kind) && (!q || has(u.name, q) || has(u.phone, q) || has(u.city, q) || has(u.id, q))
       && (!query.bg || u.bg === query.bg) && (!query.verify || ((u.verify || {}).status || 'none') === query.verify) && (!query.status || (u.status || 'active') === query.status)
       && (!query.mismatch || (u.verify || {}).mismatch) && (!query.listed || core.donorListed(u, core.cfg())) && (!query.organ || (u.organ && u.organ.pledged)));
     a = a.sort((x, y) => (y.createdAt || 0) - (x.createdAt || 0));
-    const r = page(a, query); r.items = r.items.map(userRow); return r;
+    const r = page(a, query); r.items = r.items.map(u => userRow(u, rc)); return r;
   });
   R.add('GET', '/api/admin/users/:id', only, ({ params }) => {
     const u = store.get('users', params.id); if (!u) throw new HttpError(404, 'Not found');
@@ -356,8 +359,8 @@ module.exports = function register(R, { store, core, dl, env, dataDir, limiter }
   });
   R.add('GET', '/api/admin/audit', only, ({ query }) => { const a = store.list('audit').slice().reverse(); return page(a, query); });
   R.add('GET', '/api/admin/export/users', only, ({ admin }) => {
-    audit(admin, 'export.users');
-    const rows = [['id', 'name', 'phone', 'blood_group', 'gender', 'dob', 'city', 'verified', 'method', 'available', 'last_donation', 'donations', 'organ_pledge', 'joined']].concat(store.list('users').map(u => [u.id, u.name, u.phone, u.bg, u.gender, u.dob, u.city, (u.verify || {}).status || 'none', (u.verify || {}).method || '', u.available ? 'yes' : 'no', u.last, (u.donatedBefore || 0) + store.filter('donations', d => d.userId === u.id).length, u.organ && u.organ.pledged ? 'yes' : 'no', new Date(u.createdAt || 0).toISOString()]));
+    audit(admin, 'export.users'); const rcx = reqCounts();
+    const rows = [['id', 'name', 'phone', 'blood_group', 'gender', 'dob', 'city', 'verified', 'method', 'available', 'last_donation', 'donations', 'organ_pledge', 'joined', 'type', 'requests_made']].concat(store.list('users').map(u => [u.id, u.name, u.phone, u.bg, u.gender, u.dob, u.city, (u.verify || {}).status || 'none', (u.verify || {}).method || '', u.available ? 'yes' : 'no', u.last, (u.donatedBefore || 0) + store.filter('donations', d => d.userId === u.id).length, u.organ && u.organ.pledged ? 'yes' : 'no', new Date(u.createdAt || 0).toISOString(), kindOf(u, rcx.get(u.id) || 0), rcx.get(u.id) || 0]));
     return { __raw: csv(rows), type: 'text/csv', filename: 'lifelink-users.csv' };
   });
   R.add('GET', '/api/admin/export/donations', only, ({ admin }) => {
